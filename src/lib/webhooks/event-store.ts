@@ -162,3 +162,14 @@ export async function finishWebhookEvent(
 
   if (error) throw new Error("Unable to update webhook event status");
 }
+
+
+/** Atomically lease due events for a scheduled worker. */
+export async function claimNextWebhookEvents(limit = 10): Promise<string[]> {
+  const { data, error } = await getSupabaseAdmin().rpc('claim_next_webhook_events', {
+    p_limit: Math.min(20, Math.max(1, Math.trunc(limit))),
+  });
+  if (error) throw new Error('Unable to claim webhook queue');
+  return (data ?? []).map((row: { event_id?: unknown }) => row.event_id)
+    .filter((id: unknown): id is string => typeof id === 'string');
+}
