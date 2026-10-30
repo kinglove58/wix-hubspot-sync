@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getHubSpotContact } from "@/lib/providers/hubspot/client";
-import { syncHubSpotContactToWix } from "@/lib/sync/engine";
+import { syncHubSpotContactToWix, syncWixContactToHubSpot } from "@/lib/sync/engine";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   claimPendingWebhookEvent,
@@ -32,10 +32,26 @@ export async function processWebhookEvent(eventId: string, alreadyClaimed = fals
     const event = await getClaimedWebhookEvent(eventId);
     if (!event) throw new Error("Claimed event could not be loaded");
 
-    if (
-      event.provider !== "hubspot" ||
-      !["contact.creation", "contact.propertyChange"].includes(event.eventType)
-    ) {
+    if (event.provider === "wix") {
+      const supported = ["wix.contacts.v4.contact_created", "wix.contacts.v4.contact_updated"];
+      if (!supported.includes(event.eventType)) {
+        await finishWebhookEvent(eventId, "ignored", "UNSUPPORTED_WIX_EVENT");
+        return "ignored";
+      }
+      const eventData = event.payload.eventData;
+      const entityId = eventData && typeof eventData === "object"
+        ? (eventData as Record<string, unknown>).entityId
+        : undefined;
+      if (!event.correlationId || typeof entityId !== "string") {
+        await finishWebhookEvent(eventId, "ignored", "MISSING_WIX_CONTACT_ID");
+        return "ignored";
+      }
+      await syncWixContactToHubSpot(event.correlationId, entityId);
+      await finishWebhookEvent(eventId, "succeeded");
+      return "succeeded";
+    }
+
+    if (!["contact.creation", "contact.propertyChange"].includes(event.eventType)) {
       await finishWebhookEvent(eventId, "ignored", "UNSUPPORTED_EVENT");
       return "ignored";
     }
