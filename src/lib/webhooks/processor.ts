@@ -62,18 +62,23 @@ export async function processWebhookEvent(eventId: string, alreadyClaimed = fals
       return "ignored";
     }
 
-    const { data: wixConnection, error } = await getSupabaseAdmin()
+    // A HubSpot connection is not yet explicitly paired to a Wix site.
+    // Never send a contact to an arbitrary site when multiple Wix installs exist.
+    const { data: wixConnections, error } = await getSupabaseAdmin()
       .from("provider_connections")
       .select("external_account_id")
       .eq("provider", "wix")
       .is("disconnected_at", null)
       .not("external_account_id", "is", null)
-      .limit(1)
-      .maybeSingle();
+      .limit(2);
 
     if (error) throw new Error("Unable to resolve Wix installation");
-    if (!wixConnection?.external_account_id) {
+    if (!wixConnections?.length) {
       await finishWebhookEvent(eventId, "ignored", "WIX_NOT_CONNECTED");
+      return "ignored";
+    }
+    if (wixConnections.length !== 1 || !wixConnections[0].external_account_id) {
+      await finishWebhookEvent(eventId, "ignored", "WIX_INSTALLATION_AMBIGUOUS");
       return "ignored";
     }
 
@@ -81,7 +86,7 @@ export async function processWebhookEvent(eventId: string, alreadyClaimed = fals
     if (!contact.id) throw new Error("HubSpot contact response is incomplete");
 
     await syncHubSpotContactToWix(
-      wixConnection.external_account_id as string,
+      wixConnections[0].external_account_id as string,
       hubspotContactId,
       contact,
     );
