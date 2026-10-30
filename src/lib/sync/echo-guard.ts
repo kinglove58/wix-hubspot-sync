@@ -5,28 +5,25 @@ import { getSupabaseAdmin } from "@/lib/supabase/admin";
 export type SyncOrigin = "wix" | "hubspot";
 
 /**
- * Suppresses a near-immediate echo from the provider we just wrote to.
- * Provider timestamps are required for a strong decision; missing timestamps
- * deliberately do not trigger suppression.
+ * Suppresses a near-immediate echo from the provider we last wrote to.
+ * Compare the incoming event timestamp with that target provider's returned
+ * update timestamp, not the local sync time (which can suppress real edits).
  */
 export function isLikelySyncEcho(input: {
   incomingProvider: SyncOrigin;
   lastWrittenBy: SyncOrigin | null;
-  lastSyncedAt: string | null;
+  lastWrittenTargetUpdatedAt: string | null;
   incomingUpdatedAt: string | null;
   toleranceMs?: number;
 }): boolean {
   if (!input.lastWrittenBy || input.lastWrittenBy === input.incomingProvider) return false;
-  if (!input.lastSyncedAt || !input.incomingUpdatedAt) return false;
+  if (!input.lastWrittenTargetUpdatedAt || !input.incomingUpdatedAt) return false;
 
-  const syncedAt = Date.parse(input.lastSyncedAt);
-  const updatedAt = Date.parse(input.incomingUpdatedAt);
-  if (!Number.isFinite(syncedAt) || !Number.isFinite(updatedAt)) return false;
+  const writtenAt = Date.parse(input.lastWrittenTargetUpdatedAt);
+  const incomingAt = Date.parse(input.incomingUpdatedAt);
+  if (!Number.isFinite(writtenAt) || !Number.isFinite(incomingAt)) return false;
 
-  // Only ignore an opposite-provider event whose source timestamp is no newer
-  // than the sync write, within a small provider clock-skew allowance.
-  const tolerance = input.toleranceMs ?? 30_000;
-  return updatedAt <= syncedAt + tolerance;
+  return Math.abs(incomingAt - writtenAt) <= (input.toleranceMs ?? 30_000);
 }
 
 export async function findContactLinkByWixId(wixContactId: string) {
