@@ -12,6 +12,7 @@ const envSchema = z.object({
   HUBSPOT_SCOPES: z.string().default("crm.objects.contacts.read crm.objects.contacts.write"),
   WIX_APP_ID: optionalSecret,
   WIX_APP_SECRET: optionalSecret,
+  WIX_WEBHOOK_SECRET: optionalSecret,
   TOKEN_ENCRYPTION_KEY: optionalSecret,
 });
 
@@ -25,5 +26,6 @@ export const env = envSchema.parse({
   HUBSPOT_SCOPES: process.env.HUBSPOT_SCOPES,
   WIX_APP_ID: process.env.WIX_APP_ID,
   WIX_APP_SECRET: process.env.WIX_APP_SECRET,
+  WIX_WEBHOOK_SECRET: process.env.WIX_WEBHOOK_SECRET,
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY,
 });
