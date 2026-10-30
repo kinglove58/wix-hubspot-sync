@@ -1,15 +1,14 @@
 import "server-only";
 import { createVerify } from "node:crypto";
 
-type WixWebhookClaims = {
-  eventType?: unknown;
-  instanceId?: unknown;
-  eventId?: unknown;
-  data?: unknown;
-  exp?: unknown;
-  iat?: unknown;
-  [key: string]: unknown;
-};
+export interface VerifiedWixWebhook {
+  eventType: string;
+  instanceId: string;
+  eventId?: string;
+  entityId?: string;
+  eventData: Record<string, unknown>;
+  envelope: Record<string, unknown>;
+}
 
 function decodeSegment(segment: string): Record<string, unknown> | null {
   try {
@@ -22,23 +21,36 @@ function decodeSegment(segment: string): Record<string, unknown> | null {
   }
 }
 
-/** Verify Wix's signed webhook JWT using the app's Webhooks public key. */
+function parseObject(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "string") return null;
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Verify Wix's signed JWT and unwrap its two-level webhook envelope. */
 export function verifyWixWebhook(input: {
   token: string;
   publicKey: string;
   now?: number;
-}): WixWebhookClaims | null {
+}): VerifiedWixWebhook | null {
   const parts = input.token.trim().split(".");
   if (parts.length !== 3 || !input.publicKey.trim()) return null;
 
   const header = decodeSegment(parts[0]);
-  const claims = decodeSegment(parts[1]) as WixWebhookClaims | null;
-  if (!header || header.alg !== "RS256" || !claims) return null;
+  const outer = decodeSegment(parts[1]);
+  if (!header || header.alg !== "RS256" || !outer) return null;
 
-  const expiresAt = Number(claims.exp);
+  const expiresAt = Number(outer.exp);
+  const issuedAt = Number(outer.iat);
   const nowSeconds = Math.floor((input.now ?? Date.now()) / 1000);
   if (!Number.isFinite(expiresAt) || expiresAt <= nowSeconds) return null;
-  if (claims.iat !== undefined && Number(claims.iat) > nowSeconds + 60) return null;
+  if (Number.isFinite(issuedAt) && issuedAt > nowSeconds + 60) return null;
 
   try {
     const publicKey = input.publicKey.replace(/\\n/g, "\n");
@@ -50,6 +62,18 @@ export function verifyWixWebhook(input: {
     return null;
   }
 
-  if (typeof claims.eventType !== "string" || typeof claims.instanceId !== "string") return null;
-  return claims;
+  // Wix REST webhooks wrap the event envelope in the outer JWT's data string.
+  const envelope = parseObject(outer.data);
+  if (!envelope || typeof envelope.eventType !== "string" || typeof envelope.instanceId !== "string") return null;
+  const eventData = parseObject(envelope.data);
+  if (!eventData) return null;
+
+  return {
+    eventType: envelope.eventType,
+    instanceId: envelope.instanceId,
+    eventId: typeof eventData.id === "string" ? eventData.id : undefined,
+    entityId: typeof eventData.entityId === "string" ? eventData.entityId : undefined,
+    eventData,
+    envelope,
+  };
 }
