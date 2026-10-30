@@ -7,10 +7,15 @@ export interface StoredFieldMapping extends FieldMapping {
   enabled: boolean;
 }
 
-export async function listEnabledMappings(): Promise<StoredFieldMapping[]> {
+export async function listEnabledMappings(
+  wixConnectionId: string,
+  hubspotConnectionId: string,
+): Promise<StoredFieldMapping[]> {
   const { data, error } = await getSupabaseAdmin()
     .from("field_mappings")
     .select("id,wix_field,hubspot_property,sync_direction,transform,enabled")
+    .eq("wix_connection_id", wixConnectionId)
+    .eq("hubspot_connection_id", hubspotConnectionId)
     .eq("enabled", true)
     .order("created_at", { ascending: true });
 
@@ -41,6 +46,25 @@ export async function saveFieldMapping(input: {
   };
   const errors = validateMappings([candidate]);
   if (errors.length) throw new Error(errors.join("; "));
+
+  const { data: wixConnection, error: wixError } = await getSupabaseAdmin()
+    .from("provider_connections")
+    .select("id")
+    .eq("id", input.wixConnectionId)
+    .eq("provider", "wix")
+    .is("disconnected_at", null)
+    .maybeSingle();
+  const { data: hubspotConnection, error: hubspotError } = await getSupabaseAdmin()
+    .from("provider_connections")
+    .select("id")
+    .eq("id", input.hubspotConnectionId)
+    .eq("provider", "hubspot")
+    .is("disconnected_at", null)
+    .maybeSingle();
+
+  if (wixError || hubspotError || !wixConnection || !hubspotConnection) {
+    throw new Error("Active Wix and HubSpot connections are required");
+  }
 
   const { error } = await getSupabaseAdmin().from("field_mappings").upsert({
     wix_connection_id: input.wixConnectionId,
