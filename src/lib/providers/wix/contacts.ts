@@ -59,7 +59,8 @@ export async function queryWixContacts(
 }
 
 function unwrapContact(response: WixContact | { contact?: WixContact }): WixContact {
-  if ("contact" in response && response.contact) return response.contact;
+  const nested = (response as { contact?: WixContact }).contact;
+  if (nested && typeof nested === "object") return nested;
   return response as WixContact;
 }
 
