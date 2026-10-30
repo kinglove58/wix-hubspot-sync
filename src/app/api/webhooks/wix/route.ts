@@ -9,16 +9,20 @@ export async function POST(request: NextRequest) {
   if (!publicKey) return NextResponse.json({ error: "Wix webhook endpoint is not configured" }, { status: 503 });
 
   const rawBody = await request.text();
-  const claims = verifyWixWebhook({ token: rawBody, publicKey });
-  if (!claims) return NextResponse.json({ error: "Invalid Wix webhook signature" }, { status: 401 });
+  const event = verifyWixWebhook({ token: rawBody, publicKey });
+  if (!event) return NextResponse.json({ error: "Invalid Wix webhook signature or payload" }, { status: 401 });
 
   try {
     const result = await persistVerifiedWebhookEvent({
       provider: "wix",
-      eventId: claims.eventId == null ? undefined : String(claims.eventId),
-      eventType: claims.eventType as string,
-      correlationId: claims.instanceId as string,
-      payload: claims as Record<string, unknown>,
+      eventId: event.eventId,
+      eventType: event.eventType,
+      correlationId: event.instanceId,
+      payload: {
+        eventType: event.eventType,
+        instanceId: event.instanceId,
+        eventData: event.eventData,
+      },
     });
     return NextResponse.json({ accepted: true, duplicate: result.duplicate }, { status: 200 });
   } catch {
