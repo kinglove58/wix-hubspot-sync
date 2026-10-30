@@ -22,9 +22,11 @@ function readObjectId(payload: Record<string, unknown>): string | null {
  * events. Wix events remain safely queued until Wix signature validation and
  * installation lifecycle registration are implemented.
  */
-export async function processWebhookEvent(eventId: string): Promise<ProcessResult> {
-  const claimed = await claimPendingWebhookEvent(eventId);
-  if (!claimed) return "ignored";
+export async function processWebhookEvent(eventId: string, alreadyClaimed = false): Promise<ProcessResult> {
+  if (!alreadyClaimed) {
+    const claimed = await claimPendingWebhookEvent(eventId);
+    if (!claimed) return "ignored";
+  }
 
   try {
     const event = await getClaimedWebhookEvent(eventId);
