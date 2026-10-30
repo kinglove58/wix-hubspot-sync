@@ -12,9 +12,19 @@ import {
   type WixContact,
 } from "@/lib/providers/wix/contacts";
 import { hubSpotContactToWixInfo, wixContactToHubSpotProperties } from "@/lib/sync/normalize";
+import { resolveProviderConnections } from "@/lib/sync/connection-repository";
+import { listEnabledMappings } from "@/lib/sync/mapping-repository";
+import { mapHubSpotPayloadToWix, mapWixPayloadToHubSpot } from "@/lib/sync/provider-mapping";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
-type Direction = "wix_to_hubspot" | "hubspot_to_wix";
+function toHubSpotProperties(input: Record<string, unknown>): Record<string, string> {
+  const output: Record<string, string> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (value === null || value === undefined || typeof value === "object") continue;
+    output[key] = String(value);
+  }
+  return output;
+}
 
 async function audit(input: {
   provider: "wix" | "hubspot";
@@ -36,18 +46,27 @@ async function audit(input: {
 }
 
 export async function syncWixContactToHubSpot(instanceId: string, wixContactId: string) {
+  const connections = await resolveProviderConnections(instanceId);
+  const db = getSupabaseAdmin();
   const wix = await getWixContact(instanceId, wixContactId);
-  const properties = wixContactToHubSpotProperties(wix);
+  const mappings = await listEnabledMappings(connections.wix.id, connections.hubspot.id);
+  const mapped = mappings.length
+    ? mapWixPayloadToHubSpot(wix as unknown as Record<string, unknown>, mappings)
+    : {};
+  const properties = {
+    ...wixContactToHubSpotProperties(wix),
+    ...toHubSpotProperties(mapped),
+  };
   if (!properties.email) {
     await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, details: { reason: "email_required_for_matching" } });
     return { status: "skipped" as const, reason: "email_required_for_matching" };
   }
 
-  const db = getSupabaseAdmin();
   const { data: existingLink, error: linkError } = await db.from("contact_links")
     .select("hubspot_contact_id")
+    .eq("wix_connection_id", connections.wix.id)
+    .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("wix_contact_id", wixContactId)
-    .limit(1)
     .maybeSingle();
   if (linkError) throw new Error("Unable to read contact link");
 
@@ -64,21 +83,9 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   }
   if (!hubspotContactId) throw new Error("HubSpot did not return a contact ID");
 
-  const { data: wixConnection, error: wixConnectionError } = await db.from("provider_connections")
-    .select("id").eq("provider", "wix").is("disconnected_at", null).limit(1).maybeSingle();
-  const { data: hubspotConnection, error: hubspotConnectionError } = await db.from("provider_connections")
-    .select("id").eq("provider", "hubspot").is("disconnected_at", null).limit(1).maybeSingle();
-  if (wixConnectionError || hubspotConnectionError) throw new Error("Unable to resolve provider connections");
-
-  // The Wix app installation is represented by its instance ID; create its
-  // connection row when the install webhook has registered it.
-  if (!wixConnection?.id || !hubspotConnection?.id) {
-    throw new Error("Both provider installations must be registered before syncing");
-  }
-
   const { error: upsertError } = await db.from("contact_links").upsert({
-    wix_connection_id: wixConnection.id,
-    hubspot_connection_id: hubspotConnection.id,
+    wix_connection_id: connections.wix.id,
+    hubspot_connection_id: connections.hubspot.id,
     wix_contact_id: wixContactId,
     hubspot_contact_id: hubspotContactId,
     last_synced_at: new Date().toISOString(),
@@ -96,6 +103,7 @@ export async function syncHubSpotContactToWix(
   hubspotContactId: string,
   contact: { id?: string; properties?: Record<string, string | null>; updatedAt?: string },
 ) {
+  const connections = await resolveProviderConnections(instanceId);
   const email = contact.properties?.email;
   if (!email) {
     await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", hubspotContactId, details: { reason: "email_required_for_matching" } });
@@ -104,10 +112,21 @@ export async function syncHubSpotContactToWix(
 
   const db = getSupabaseAdmin();
   const { data: link, error } = await db.from("contact_links")
-    .select("wix_contact_id").eq("hubspot_contact_id", hubspotContactId).limit(1).maybeSingle();
+    .select("wix_contact_id")
+    .eq("wix_connection_id", connections.wix.id)
+    .eq("hubspot_connection_id", connections.hubspot.id)
+    .eq("hubspot_contact_id", hubspotContactId)
+    .maybeSingle();
   if (error) throw new Error("Unable to read contact link");
 
-  const info = hubSpotContactToWixInfo(contact);
+  const mappings = await listEnabledMappings(connections.wix.id, connections.hubspot.id);
+  const mapped = mappings.length
+    ? mapHubSpotPayloadToWix((contact.properties ?? {}) as Record<string, unknown>, mappings)
+    : {};
+  const info = (mappings.length
+    ? mapped
+    : hubSpotContactToWixInfo(contact)) as NonNullable<WixContact["info"]>;
+
   let wix: WixContact;
   if (link?.wix_contact_id) {
     const current = await getWixContact(instanceId, link.wix_contact_id as string);
@@ -118,17 +137,9 @@ export async function syncHubSpotContactToWix(
   }
   if (!wix.id) throw new Error("Wix did not return a contact ID");
 
-  const { data: wixConnection } = await db.from("provider_connections")
-    .select("id").eq("provider", "wix").is("disconnected_at", null).limit(1).maybeSingle();
-  const { data: hubspotConnection } = await db.from("provider_connections")
-    .select("id").eq("provider", "hubspot").is("disconnected_at", null).limit(1).maybeSingle();
-  if (!wixConnection?.id || !hubspotConnection?.id) {
-    throw new Error("Both provider installations must be registered before syncing");
-  }
-
   const { error: upsertError } = await db.from("contact_links").upsert({
-    wix_connection_id: wixConnection.id,
-    hubspot_connection_id: hubspotConnection.id,
+    wix_connection_id: connections.wix.id,
+    hubspot_connection_id: connections.hubspot.id,
     wix_contact_id: wix.id,
     hubspot_contact_id: hubspotContactId,
     last_synced_at: new Date().toISOString(),
