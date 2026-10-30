@@ -1,18 +1,26 @@
 # Wix ↔ HubSpot Contact Sync
 
-A full-stack integration project for synchronizing contacts between Wix and HubSpot. This repository is being built for a technical assignment and prioritizes reliability, security, observability, and clear setup instructions.
+A Next.js and Supabase integration for synchronizing Wix Contacts v4 with HubSpot CRM contacts. The implementation is being developed in a feature branch and has not yet been deployed or verified end-to-end.
 
-## Planned capabilities
+## Implemented in the current feature branch
 
-- Bidirectional contact create/update synchronization.
-- Configurable Wix-to-HubSpot property mapping, sync direction, and optional transforms.
-- Deterministic conflict resolution (latest source update wins, with explicit tie-breaking and loop protection).
-- Idempotent webhook ingestion and event processing.
-- Wix form submission capture with attribution metadata (UTMs, page URL, referrer, and submission time).
-- HubSpot OAuth connection flow and secure server-side credential handling.
-- Admin UI for connections, field mappings, sync status, and errors.
+- HubSpot OAuth authorization-code flow with encrypted server-side token storage and refresh.
+- Wix self-managed app site-token exchange using app credentials and the Wix app instance ID.
+- Wix webhook JWT verification using the app's RS256 public key, including the nested webhook envelope.
+- Durable, encrypted, idempotent webhook ingestion.
+- Atomic worker claims, bounded retries, exponential backoff, and stale-worker recovery.
+- Wix contact-created/updated event processing into HubSpot.
+- HubSpot contact-created/property-change event processing into Wix when exactly one Wix installation is connected.
+- Wix app install/uninstall lifecycle event handling, preserving historical contact links on uninstall.
+- Configurable field mappings and audit logging.
 
-> Status: initial project foundation. Features will be marked complete only after implementation and tests are in place.
+## Not yet production-ready
+
+- HubSpot and Wix app setup has not been completed against a live deployed environment.
+- Wix webhook subscriptions have not been registered or tested against a live app.
+- Contact mapping, loop prevention, conflict handling, and retries need automated and end-to-end validation.
+- A multi-site Wix-to-HubSpot pairing model is not yet available; HubSpot-to-Wix events are safely ignored when multiple Wix installations are active.
+- Dashboard, Wix form submission attribution, and production deployment are not complete.
 
 ## Stack
 
@@ -38,7 +46,7 @@ See [`.env.example`](.env.example). OAuth and webhook secrets must be stored ser
 ## Integration design
 
 - **HubSpot:** OAuth authorization code flow for user-authorized CRM access; validate state, exchange codes server-side, and store tokens securely.
-- **Wix:** configure the app according to the Wix app type and its current authentication model. Do not assume Wix uses the same OAuth token lifecycle as HubSpot.
+- **Wix:** this project uses a self-managed app and exchanges app credentials plus the installed instance ID for a site-scoped token. Keep the app ID and secret server-side.
 - **Webhooks:** verify provider authenticity before accepting events; persist accepted events before processing.
 - **Idempotency:** use provider event IDs where available and a stable deduplication key otherwise.
 - **Loop prevention:** persist source/system metadata and skip events caused by this integration where the provider supports reliable correlation.
@@ -57,7 +65,7 @@ See [`.env.example`](.env.example). OAuth and webhook secrets must be stored ser
 | `GET/PUT /api/mappings` | Read and validate mapping configuration |
 | `POST /api/sync/run` | Trigger a controlled sync operation |
 
-Routes are a design plan until implemented and tested.
+Routes are not a production contract until deployed and verified.
 
 ## Development checks
 
