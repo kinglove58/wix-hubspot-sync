@@ -132,12 +132,29 @@ export async function finishWebhookEvent(
   outcome: "succeeded" | "failed" | "ignored",
   safeErrorCode?: string,
 ): Promise<void> {
-  const { error } = await getSupabaseAdmin()
+  const db = getSupabaseAdmin();
+  const { data: event, error: readError } = await db
+    .from("webhook_events")
+    .select("attempts")
+    .eq("id", eventId)
+    .eq("status", "processing")
+    .maybeSingle();
+
+  if (readError || !event) throw new Error("Unable to read processing webhook event");
+
+  const attempts = Number(event.attempts ?? 1);
+  const retryDelaySeconds = Math.min(3600, 30 * (2 ** Math.max(0, attempts - 1)));
+  const nextAttemptAt = outcome === "failed" && attempts < 5
+    ? new Date(Date.now() + retryDelaySeconds * 1000).toISOString()
+    : null;
+
+  const { error } = await db
     .from("webhook_events")
     .update({
       status: outcome,
       processed_at: new Date().toISOString(),
       error_code: safeErrorCode ?? null,
+      next_attempt_at: nextAttemptAt,
     })
     .eq("id", eventId)
     .eq("status", "processing");
