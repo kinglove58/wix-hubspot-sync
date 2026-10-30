@@ -1,6 +1,20 @@
 import type { FieldMapping } from "@/lib/sync/mapping";
 import { transformValue } from "@/lib/sync/mapping";
 
+function readPath(source: Record<string, unknown>, path: string): unknown {
+  let value: unknown = source;
+  for (const segment of path.split(".")) {
+    if (Array.isArray(value)) {
+      if (!/^\\d+$/.test(segment)) return undefined;
+      value = value[Number(segment)];
+      continue;
+    }
+    if (value === null || typeof value !== "object") return undefined;
+    value = (value as Record<string, unknown>)[segment];
+  }
+  return value;
+}
+
 export function applyNestedMappings(
   source: Record<string, unknown>,
   mappings: FieldMapping[],
@@ -10,19 +24,11 @@ export function applyNestedMappings(
 
   for (const mapping of mappings) {
     if (mapping.direction !== "both" && mapping.direction !== direction) continue;
-
-    let value: unknown = source;
-    for (const segment of mapping.sourceField.split(".")) {
-      if (value === null || typeof value !== "object" || Array.isArray(value)) {
-        value = undefined;
-        break;
-      }
-      value = (value as Record<string, unknown>)[segment];
-    }
+    const value = readPath(source, mapping.sourceField);
     if (value === undefined) continue;
 
     const parts = mapping.targetField.split(".");
-    if (parts.some((part) => !part.trim())) continue;
+    if (parts.some((part) => !part.trim() || /^\\d+$/.test(part))) continue;
     let cursor = output;
     for (const part of parts.slice(0, -1)) {
       const child = cursor[part];
@@ -31,6 +37,5 @@ export function applyNestedMappings(
     }
     cursor[parts[parts.length - 1]] = transformValue(value, mapping.transform);
   }
-
   return output;
 }
