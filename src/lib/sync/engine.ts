@@ -27,6 +27,21 @@ function toHubSpotProperties(input: Record<string, unknown>): Record<string, str
   return output;
 }
 
+function mergeMappedInfo(
+  defaults: Record<string, unknown>,
+  overrides: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...defaults };
+  for (const [key, value] of Object.entries(overrides)) {
+    const current = result[key];
+    result[key] = value && current && typeof value === "object" && typeof current === "object"
+      && !Array.isArray(value) && !Array.isArray(current)
+      ? mergeMappedInfo(current as Record<string, unknown>, value as Record<string, unknown>)
+      : value;
+  }
+  return result;
+}
+
 async function audit(input: {
   provider: "wix" | "hubspot";
   action: string;
@@ -145,9 +160,10 @@ export async function syncHubSpotContactToWix(
   const mapped = mappings.length
     ? mapHubSpotPayloadToWix((contact.properties ?? {}) as Record<string, unknown>, mappings)
     : {};
+  const defaults = hubSpotContactToWixInfo(contact) as Record<string, unknown>;
   const info = (mappings.length
-    ? mapped
-    : hubSpotContactToWixInfo(contact)) as NonNullable<WixContact["info"]>;
+    ? mergeMappedInfo(defaults, mapped)
+    : defaults) as NonNullable<WixContact["info"]>;
 
   let wix: WixContact;
   if (link?.wix_contact_id) {
