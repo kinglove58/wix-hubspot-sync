@@ -9,8 +9,8 @@ export interface WixContact {
   revision?: number;
   info?: {
     name?: { first?: string; last?: string };
-    emails?: Array<{ email?: string; primary?: boolean }>;
-    phones?: Array<{ phone?: string; primary?: boolean }>;
+    emails?: Array<{ email?: string; primary?: boolean }> | { items?: Array<{ email?: string; primary?: boolean; tag?: string }> };
+    phones?: Array<{ phone?: string; primary?: boolean }> | { items?: Array<{ phone?: string; primary?: boolean; tag?: string }> };
     company?: string;
     [key: string]: unknown;
   };
@@ -58,18 +58,28 @@ export async function queryWixContacts(
   });
 }
 
+function unwrapContact(response: WixContact | { contact?: WixContact }): WixContact {
+  if ("contact" in response && response.contact) return response.contact;
+  return response as WixContact;
+}
+
 export async function getWixContact(instanceId: string, contactId: string): Promise<WixContact> {
-  return wixRequest(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`);
+  const response = await wixRequest<WixContact | { contact?: WixContact }>(
+    instanceId,
+    `/contacts/v4/contacts/${encodeURIComponent(contactId)}`,
+  );
+  return unwrapContact(response);
 }
 
 export async function createWixContact(
   instanceId: string,
   info: NonNullable<WixContact["info"]>,
 ): Promise<WixContact> {
-  return wixRequest(instanceId, "/contacts/v4/contacts", {
+  const response = await wixRequest<WixContact | { contact?: WixContact }>(instanceId, "/contacts/v4/contacts", {
     method: "POST",
     body: JSON.stringify({ info }),
   });
+  return unwrapContact(response);
 }
 
 export async function updateWixContact(
@@ -78,8 +88,10 @@ export async function updateWixContact(
   revision: number,
   info: NonNullable<WixContact["info"]>,
 ): Promise<WixContact> {
-  return wixRequest(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`, {
-    method: "PATCH",
-    body: JSON.stringify({ revision, info }),
-  });
+  const response = await wixRequest<WixContact | { contact?: WixContact }>(
+    instanceId,
+    `/contacts/v4/contacts/${encodeURIComponent(contactId)}`,
+    { method: "PATCH", body: JSON.stringify({ revision, info }) },
+  );
+  return unwrapContact(response);
 }
