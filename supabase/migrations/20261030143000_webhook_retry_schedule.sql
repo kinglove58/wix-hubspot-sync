@@ -45,8 +45,9 @@ language sql security definer set search_path = public as $$
       (status in ('pending','failed') and (next_attempt_at is null or next_attempt_at <= now()))
       or (status = 'processing' and processing_started_at < now() - interval '10 minutes')
     )
-    order by received_at asc for update skip locked
+    order by received_at asc
     limit least(greatest(coalesce(p_limit,10),1),20)
+    for update skip locked
   ), claimed as (
     update public.webhook_events e set status='processing', attempts=e.attempts+1,
       error_code=null, next_attempt_at=null, processing_started_at=now()
