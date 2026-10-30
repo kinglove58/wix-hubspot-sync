@@ -64,7 +64,7 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   }
 
   const { data: existingLink, error: linkError } = await db.from("contact_links")
-    .select("hubspot_contact_id,last_synced_at,last_source")
+    .select("hubspot_contact_id,last_source,hubspot_updated_at")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("wix_contact_id", wixContactId)
@@ -74,7 +74,7 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   if (existingLink && isLikelySyncEcho({
     incomingProvider: "wix",
     lastWrittenBy: existingLink.last_source as "wix" | "hubspot" | null,
-    lastSyncedAt: existingLink.last_synced_at as string | null,
+    lastWrittenTargetUpdatedAt: existingLink.hubspot_updated_at as string | null,
     incomingUpdatedAt: wix.updatedDate ?? null,
   })) {
     await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, hubspotContactId: existingLink.hubspot_contact_id as string, details: { reason: "probable_sync_echo" } });
@@ -102,6 +102,7 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
     last_synced_at: new Date().toISOString(),
     last_source: "wix",
     wix_updated_at: wix.updatedDate ?? null,
+    hubspot_updated_at: result.updatedAt ?? null,
   }, { onConflict: "wix_connection_id,wix_contact_id" });
   if (upsertError) throw new Error("Unable to save contact link");
 
@@ -123,7 +124,7 @@ export async function syncHubSpotContactToWix(
 
   const db = getSupabaseAdmin();
   const { data: link, error } = await db.from("contact_links")
-    .select("wix_contact_id,last_synced_at,last_source")
+    .select("wix_contact_id,last_source,wix_updated_at")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("hubspot_contact_id", hubspotContactId)
@@ -133,7 +134,7 @@ export async function syncHubSpotContactToWix(
   if (link && isLikelySyncEcho({
     incomingProvider: "hubspot",
     lastWrittenBy: link.last_source as "wix" | "hubspot" | null,
-    lastSyncedAt: link.last_synced_at as string | null,
+    lastWrittenTargetUpdatedAt: link.wix_updated_at as string | null,
     incomingUpdatedAt: contact.updatedAt ?? null,
   })) {
     await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", wixContactId: link.wix_contact_id as string, hubspotContactId, details: { reason: "probable_sync_echo" } });
@@ -166,6 +167,7 @@ export async function syncHubSpotContactToWix(
     last_synced_at: new Date().toISOString(),
     last_source: "hubspot",
     hubspot_updated_at: contact.updatedAt ?? null,
+    wix_updated_at: wix.updatedDate ?? null,
   }, { onConflict: "wix_connection_id,wix_contact_id" });
   if (upsertError) throw new Error("Unable to save contact link");
 
