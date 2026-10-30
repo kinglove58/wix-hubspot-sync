@@ -16,6 +16,7 @@ import { resolveProviderConnections } from "@/lib/sync/connection-repository";
 import { listEnabledMappings } from "@/lib/sync/mapping-repository";
 import { mapHubSpotPayloadToWix, mapWixPayloadToHubSpot } from "@/lib/sync/provider-mapping";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { isLikelySyncEcho } from "@/lib/sync/echo-guard";
 
 function toHubSpotProperties(input: Record<string, unknown>): Record<string, string> {
   const output: Record<string, string> = {};
@@ -63,12 +64,22 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   }
 
   const { data: existingLink, error: linkError } = await db.from("contact_links")
-    .select("hubspot_contact_id")
+    .select("hubspot_contact_id,last_synced_at,last_source")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("wix_contact_id", wixContactId)
     .maybeSingle();
   if (linkError) throw new Error("Unable to read contact link");
+
+  if (existingLink && isLikelySyncEcho({
+    incomingProvider: "wix",
+    lastWrittenBy: existingLink.last_source as "wix" | "hubspot" | null,
+    lastSyncedAt: existingLink.last_synced_at as string | null,
+    incomingUpdatedAt: wix.updatedDate ?? null,
+  })) {
+    await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, hubspotContactId: existingLink.hubspot_contact_id as string, details: { reason: "probable_sync_echo" } });
+    return { status: "skipped" as const, reason: "probable_sync_echo" };
+  }
 
   let hubspotContactId = existingLink?.hubspot_contact_id as string | undefined;
   let result;
@@ -112,12 +123,22 @@ export async function syncHubSpotContactToWix(
 
   const db = getSupabaseAdmin();
   const { data: link, error } = await db.from("contact_links")
-    .select("wix_contact_id")
+    .select("wix_contact_id,last_synced_at,last_source")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("hubspot_contact_id", hubspotContactId)
     .maybeSingle();
   if (error) throw new Error("Unable to read contact link");
+
+  if (link && isLikelySyncEcho({
+    incomingProvider: "hubspot",
+    lastWrittenBy: link.last_source as "wix" | "hubspot" | null,
+    lastSyncedAt: link.last_synced_at as string | null,
+    incomingUpdatedAt: contact.updatedAt ?? null,
+  })) {
+    await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", wixContactId: link.wix_contact_id as string, hubspotContactId, details: { reason: "probable_sync_echo" } });
+    return { status: "skipped" as const, reason: "probable_sync_echo" };
+  }
 
   const mappings = await listEnabledMappings(connections.wix.id, connections.hubspot.id);
   const mapped = mappings.length
