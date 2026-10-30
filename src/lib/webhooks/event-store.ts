@@ -155,6 +155,7 @@ export async function finishWebhookEvent(
       processed_at: new Date().toISOString(),
       error_code: safeErrorCode ?? null,
       next_attempt_at: nextAttemptAt,
+      processing_started_at: null,
     })
     .eq("id", eventId)
     .eq("status", "processing");
