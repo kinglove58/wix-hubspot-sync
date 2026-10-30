@@ -18,9 +18,9 @@ function readObjectId(payload: Record<string, unknown>): string | null {
 }
 
 /**
- * First worker implementation: process HubSpot contact create/property-change
- * events. Wix events remain safely queued until Wix signature validation and
- * installation lifecycle registration are implemented.
+ * Process verified provider events after the durable queue has leased the event.
+ * Provider failures are converted to safe retry metadata; sensitive payloads
+ * and provider response bodies are never written to logs.
  */
 export async function processWebhookEvent(eventId: string, alreadyClaimed = false): Promise<ProcessResult> {
   if (!alreadyClaimed) {
