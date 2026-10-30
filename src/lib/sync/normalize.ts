@@ -2,10 +2,16 @@ import type { WixContact } from "@/lib/providers/wix/contacts";
 import type { HubSpotContact } from "@/lib/providers/hubspot/client";
 
 export function wixContactToHubSpotProperties(contact: WixContact): Record<string, string> {
-  const email = contact.info?.emails?.find((item) => item.primary)?.email ??
-    contact.info?.emails?.[0]?.email;
-  const phone = contact.info?.phones?.find((item) => item.primary)?.phone ??
-    contact.info?.phones?.[0]?.phone;
+  const emailItems = Array.isArray(contact.info?.emails)
+    ? contact.info.emails
+    : contact.info?.emails?.items ?? [];
+  const phoneItems = Array.isArray(contact.info?.phones)
+    ? contact.info.phones
+    : contact.info?.phones?.items ?? [];
+  const email = emailItems.find((item) => item.primary || item.tag === "MAIN")?.email ??
+    emailItems[0]?.email;
+  const phone = phoneItems.find((item) => item.primary || item.tag === "MAIN")?.phone ??
+    phoneItems[0]?.phone;
   const properties: Record<string, string> = {};
   if (email) properties.email = email;
   if (contact.info?.name?.first) properties.firstname = contact.info.name.first;
