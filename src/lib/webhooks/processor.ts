@@ -33,6 +33,40 @@ export async function processWebhookEvent(eventId: string, alreadyClaimed = fals
     if (!event) throw new Error("Claimed event could not be loaded");
 
     if (event.provider === "wix") {
+      const normalizedEventType = event.eventType.toLowerCase().replace(/[^a-z]/g, "");
+      const isAppInstalled = normalizedEventType.includes("appinstanceinstalled");
+      const isAppRemoved = normalizedEventType.includes("appinstanceremoved");
+
+      if (isAppInstalled || isAppRemoved) {
+        if (!event.correlationId) {
+          await finishWebhookEvent(eventId, "ignored", "MISSING_WIX_INSTANCE_ID");
+          return "ignored";
+        }
+
+        const db = getSupabaseAdmin();
+        if (isAppInstalled) {
+          const { error } = await db.from("provider_connections").upsert({
+            provider: "wix",
+            external_account_id: event.correlationId,
+            account_label: null,
+            connected_at: new Date().toISOString(),
+            disconnected_at: null,
+            updated_at: new Date().toISOString(),
+          }, { onConflict: "provider,external_account_id" });
+          if (error) throw new Error("Unable to register Wix installation");
+        } else {
+          const { error } = await db.from("provider_connections").update({
+            disconnected_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }).eq("provider", "wix").eq("external_account_id", event.correlationId)
+            .is("disconnected_at", null);
+          if (error) throw new Error("Unable to disconnect Wix installation");
+        }
+
+        await finishWebhookEvent(eventId, "succeeded");
+        return "succeeded";
+      }
+
       const supported = ["wix.contacts.v4.contact_created", "wix.contacts.v4.contact_updated"];
       if (!supported.includes(event.eventType)) {
         await finishWebhookEvent(eventId, "ignored", "UNSUPPORTED_WIX_EVENT");
