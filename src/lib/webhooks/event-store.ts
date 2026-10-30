@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
 
 export type Provider = "wix" | "hubspot";
 export type EventStatus = "pending" | "processing" | "succeeded" | "failed" | "ignored";
@@ -20,6 +21,15 @@ export interface PersistedWebhookEvent {
   duplicate: boolean;
 }
 
+export interface ClaimedWebhookEvent {
+  id: string;
+  provider: Provider;
+  eventType: string;
+  correlationId: string | null;
+  payload: Record<string, unknown>;
+  attempts: number;
+}
+
 function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
   if (event.eventId) return `${event.provider}:${event.eventId}`;
   const digest = createHash("sha256")
@@ -33,10 +43,7 @@ function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
   return `${event.provider}:sha256:${digest}`;
 }
 
-/**
- * Call only after provider-specific signature verification succeeds.
- * The unique idempotency_key constraint makes concurrent deliveries safe.
- */
+/** Persist only encrypted payloads. Call after provider signature verification. */
 export async function persistVerifiedWebhookEvent(
   event: VerifiedWebhookEvent,
 ): Promise<PersistedWebhookEvent> {
@@ -49,6 +56,7 @@ export async function persistVerifiedWebhookEvent(
     event_type: event.eventType,
     correlation_id: event.correlationId ?? null,
     idempotency_key: idempotencyKey,
+    payload_encrypted: encryptToken(JSON.stringify(event.payload)),
     status: "pending",
   }).select("id,status").single();
 
@@ -56,7 +64,6 @@ export async function persistVerifiedWebhookEvent(
     return { id: data.id as string, status: data.status as EventStatus, duplicate: false };
   }
 
-  // Postgres unique_violation: the same event was already accepted.
   if (error?.code === "23505") {
     const { data: existing, error: lookupError } = await db
       .from("webhook_events")
@@ -71,20 +78,53 @@ export async function persistVerifiedWebhookEvent(
   throw new Error("Unable to persist verified webhook event");
 }
 
+/**
+ * The database function performs the status transition and attempts increment
+ * atomically, so two workers cannot claim the same pending event.
+ */
 export async function claimPendingWebhookEvent(eventId: string): Promise<boolean> {
+  const { data, error } = await getSupabaseAdmin().rpc("claim_webhook_event", {
+    p_event_id: eventId,
+  });
+  if (error) throw new Error("Unable to claim webhook event");
+  return data === true;
+}
+
+/** Read payload only after this worker has successfully claimed the event. */
+export async function getClaimedWebhookEvent(
+  eventId: string,
+): Promise<ClaimedWebhookEvent | null> {
   const { data, error } = await getSupabaseAdmin()
     .from("webhook_events")
-    .update({
-      status: "processing",
-      attempts: 1,
-    })
+    .select("id,provider,event_type,correlation_id,payload_encrypted,attempts,status")
     .eq("id", eventId)
-    .eq("status", "pending")
-    .select("id")
+    .eq("status", "processing")
     .maybeSingle();
 
-  if (error) throw new Error("Unable to claim webhook event");
-  return Boolean(data);
+  if (error) throw new Error("Unable to read claimed webhook event");
+  if (!data) return null;
+  if (typeof data.payload_encrypted !== "string") {
+    throw new Error("Webhook event payload is unavailable");
+  }
+
+  let payload: unknown;
+  try {
+    payload = JSON.parse(decryptToken(data.payload_encrypted));
+  } catch {
+    throw new Error("Webhook event payload could not be decrypted");
+  }
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+    throw new Error("Webhook event payload is malformed");
+  }
+
+  return {
+    id: data.id as string,
+    provider: data.provider as Provider,
+    eventType: data.event_type as string,
+    correlationId: (data.correlation_id as string | null) ?? null,
+    payload: payload as Record<string, unknown>,
+    attempts: data.attempts as number,
+  };
 }
 
 export async function finishWebhookEvent(
