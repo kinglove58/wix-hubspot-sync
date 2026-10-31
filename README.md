@@ -116,7 +116,7 @@ The dispatcher processes due events, retries failures with bounded backoff, and 
 | `POST /api/worker/dispatch` | Process due queued events |
 | `POST /api/sync/run` | Manually synchronize one contact |
 
-Dashboard mutation routes require the signed admin session. Worker routes require the CRON secret. Supabase service-role access is restricted to server modules.
+Dashboard mutation routes require the signed admin session. Worker routes require the CRON secret. Supabase service-role access is restricted to server modules. Direct browser access to integration tables is intentionally denied: there are no client-facing RLS policies, and SQL grants are limited to `service_role`.
 
 ## Development checks
 
