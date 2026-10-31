@@ -16,6 +16,7 @@ import { resolveProviderConnections } from "@/lib/sync/connection-repository";
 import { listEnabledMappings } from "@/lib/sync/mapping-repository";
 import { mapHubSpotPayloadToWix, mapWixPayloadToHubSpot } from "@/lib/sync/provider-mapping";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { resolveConflict } from "@/lib/sync/conflict";
 
 function toHubSpotProperties(input: Record<string, unknown>): Record<string, string> {
   const output: Record<string, string> = {};
@@ -63,12 +64,23 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   }
 
   const { data: existingLink, error: linkError } = await db.from("contact_links")
-    .select("hubspot_contact_id")
+    .select("hubspot_contact_id,wix_updated_at,hubspot_updated_at")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("wix_contact_id", wixContactId)
     .maybeSingle();
   if (linkError) throw new Error("Unable to read contact link");
+
+  if (existingLink?.hubspot_updated_at && wix.updatedDate) {
+    const decision = resolveConflict(
+      { provider: "wix", externalId: wixContactId, updatedAt: wix.updatedDate },
+      { provider: "hubspot", externalId: String(existingLink.hubspot_contact_id), updatedAt: existingLink.hubspot_updated_at as string },
+    );
+    if (decision.winner !== "wix") {
+      await audit({ provider: "wix", action: "contact_sync_conflict", outcome: "skipped", wixContactId, details: { reason: decision.reason } });
+      return { status: "skipped" as const, reason: "hubspot_version_is_newer" };
+    }
+  }
 
   let hubspotContactId = existingLink?.hubspot_contact_id as string | undefined;
   let result;
@@ -91,6 +103,7 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
     last_synced_at: new Date().toISOString(),
     last_source: "wix",
     wix_updated_at: wix.updatedDate ?? null,
+    hubspot_updated_at: result.updatedAt ?? null,
   }, { onConflict: "wix_connection_id,wix_contact_id" });
   if (upsertError) throw new Error("Unable to save contact link");
 
@@ -112,12 +125,23 @@ export async function syncHubSpotContactToWix(
 
   const db = getSupabaseAdmin();
   const { data: link, error } = await db.from("contact_links")
-    .select("wix_contact_id")
+    .select("wix_contact_id,wix_updated_at,hubspot_updated_at")
     .eq("wix_connection_id", connections.wix.id)
     .eq("hubspot_connection_id", connections.hubspot.id)
     .eq("hubspot_contact_id", hubspotContactId)
     .maybeSingle();
   if (error) throw new Error("Unable to read contact link");
+
+  if (link?.wix_updated_at && contact.updatedAt) {
+    const decision = resolveConflict(
+      { provider: "wix", externalId: String(link.wix_contact_id), updatedAt: link.wix_updated_at as string },
+      { provider: "hubspot", externalId: hubspotContactId, updatedAt: contact.updatedAt },
+    );
+    if (decision.winner !== "hubspot") {
+      await audit({ provider: "hubspot", action: "contact_sync_conflict", outcome: "skipped", hubspotContactId, details: { reason: decision.reason } });
+      return { status: "skipped" as const, reason: "wix_version_is_newer" };
+    }
+  }
 
   const mappings = await listEnabledMappings(connections.wix.id, connections.hubspot.id);
   const mapped = mappings.length
@@ -145,6 +169,7 @@ export async function syncHubSpotContactToWix(
     last_synced_at: new Date().toISOString(),
     last_source: "hubspot",
     hubspot_updated_at: contact.updatedAt ?? null,
+    wix_updated_at: wix.updatedDate ?? null,
   }, { onConflict: "wix_connection_id,wix_contact_id" });
   if (upsertError) throw new Error("Unable to save contact link");
 
