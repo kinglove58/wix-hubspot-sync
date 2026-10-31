@@ -57,7 +57,7 @@ function textAt(objects: UnknownRecord[], keys: string[]): string | undefined {
 
 /** Convert a Wix Forms event into a deduplicated HubSpot contact with attribution. */
 export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventData: UnknownRecord) {
-  const connections = await resolveProviderConnections(instanceId);
+  await resolveProviderConnections(instanceId);
   const submission = record(eventData.submission);
   const context = record(eventData.submissionContext ?? eventData.context ?? submission.context);
   const fields = { ...flattenFields(eventData), ...flattenFields(submission) };
@@ -79,7 +79,9 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
   if (lastName) properties.lastname = lastName;
   if (phone) properties.phone = phone;
 
-  const sourceObjects = [eventData, submission, context];
+  const utm = record(eventData.utm ?? submission.utm ?? context.utm);
+  const pageContext = record(eventData.page ?? context.page);
+  const sourceObjects = [eventData, submission, context, utm, pageContext];
   const attribution: Record<string, string | undefined> = {
     utm_source: textAt(sourceObjects, ["utm_source", "utmSource"]),
     utm_medium: textAt(sourceObjects, ["utm_medium", "utmMedium"]),
