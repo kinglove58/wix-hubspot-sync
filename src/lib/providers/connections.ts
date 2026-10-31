@@ -51,7 +51,7 @@ export async function disconnectProvider(provider: Provider, externalAccountId: 
       token: current.refreshToken,
       token_type_hint: "refresh_token",
     });
-    const response = await fetch("https://api.hubspot.com/oauth/2026-03/token/revoke", {
+    const response = await fetch("https://api.hubapi.com/oauth/2026-03/token/revoke", {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
