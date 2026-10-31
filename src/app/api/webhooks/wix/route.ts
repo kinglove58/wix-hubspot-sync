@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
+import { requestWixInstanceToken } from "@/lib/providers/wix/client";
+import { saveProviderConnection } from "@/lib/providers/connections";
+import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { persistVerifiedWebhookEvent } from "@/lib/webhooks/event-store";
 import { verifyAndDecodeWixWebhook, type WixWebhookEvent } from "@/lib/webhooks/wix-signature";
 
@@ -29,6 +32,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // A verified Wix event proves the app is installed. Bootstrap the site
+    // connection on first delivery so the user does not need to copy instance IDs.
+    const { data: existingConnection, error: connectionError } = await getSupabaseAdmin()
+      .from("provider_connections").select("id")
+      .eq("provider", "wix").eq("external_account_id", event.instanceId)
+      .is("disconnected_at", null).maybeSingle();
+    if (connectionError) throw new Error("Unable to inspect Wix connection");
+    if (!existingConnection) {
+      const token = await requestWixInstanceToken(event.instanceId);
+      await saveProviderConnection({
+        provider: "wix",
+        externalAccountId: event.instanceId,
+        accessToken: token.access_token,
+        expiresIn: token.expires_in,
+        scopes: [],
+      });
+    }
+
     const contactId = contactIdFrom(event.data, event.rawEvent);
     const result = await persistVerifiedWebhookEvent({
       provider: "wix",
