@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerEnv } from "@/lib/env";
 import { persistVerifiedWebhookEvent } from "@/lib/webhooks/event-store";
-import { verifyAndDecodeWixWebhook } from "@/lib/webhooks/wix-signature";
+import { verifyAndDecodeWixWebhook, type WixWebhookEvent } from "@/lib/webhooks/wix-signature";
 
 export const runtime = "nodejs";
 
@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
   const rawJwt = await request.text();
   if (rawJwt.length > 256_000) return NextResponse.json({ error: "Webhook payload too large" }, { status: 413 });
 
-  let event;
+  let event: WixWebhookEvent;
   try {
     event = verifyAndDecodeWixWebhook(rawJwt, publicKey);
   } catch {
