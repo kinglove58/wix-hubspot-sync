@@ -1,80 +1,129 @@
 # Wix ↔ HubSpot Contact Sync
 
-A full-stack integration project for synchronizing contacts between Wix and HubSpot. This repository is being built for a technical assignment and prioritizes reliability, security, observability, and clear setup instructions.
+A self-managed Next.js integration that synchronizes Wix contacts and form submissions with HubSpot contacts. The project is designed for a technical assignment and prioritizes secure credentials, verified webhooks, idempotent processing, configurable mappings, conflict handling, and an auditable event queue.
 
-## Planned capabilities
+## Current implementation
 
-- Bidirectional contact create/update synchronization.
-- Configurable Wix-to-HubSpot property mapping, sync direction, and optional transforms.
-- Deterministic conflict resolution (latest source update wins, with explicit tie-breaking and loop protection).
-- Idempotent webhook ingestion and event processing.
-- Wix form submission capture with attribution metadata (UTMs, page URL, referrer, and submission time).
-- HubSpot OAuth connection flow and secure server-side credential handling.
-- Admin UI for connections, field mappings, sync status, and errors.
+- HubSpot OAuth authorization-code flow with state validation and encrypted access/refresh token storage.
+- HubSpot access-token refresh and contact create/update/search APIs.
+- Wix self-managed app instance-token generation and encrypted token caching.
+- Wix webhook JWT verification with the app's RSA public key.
+- HubSpot v3 webhook signature verification.
+- Durable webhook event storage with encrypted payloads, deduplication, atomic claims, bounded retries, and stale-worker recovery.
+- Bidirectional contact sync with configurable field mappings, nested paths/arrays, transforms, timestamp conflict resolution, and reciprocal-event suppression.
+- Wix Forms submission ingestion with email/name/phone and UTM, landing-page, referrer, and submission-time attribution properties in HubSpot.
+- Password-protected admin dashboard for connections, mapping configuration, manual one-contact sync, and recent event monitoring.
+- Admin-only API endpoints and a separate CRON-protected queue dispatcher.
 
-> Status: initial project foundation. Features will be marked complete only after implementation and tests are in place.
+The live integrations are not considered verified until real Wix and HubSpot credentials are configured and end-to-end tests are run against test contacts.
 
-## Stack
+## Architecture
 
-- Next.js App Router + TypeScript
-- Supabase Postgres for durable state and event deduplication
-- Zod for environment/input validation
-- Vitest for unit tests
+- **Next.js App Router / TypeScript** — dashboard, OAuth callbacks, provider APIs, webhook receivers, and worker endpoints.
+- **Supabase Postgres** — encrypted provider connections, field mappings, Wix↔HubSpot contact links, webhook queue, and audit records.
+- **HubSpot CRM API** — contacts and attribution properties.
+- **Wix Contacts API** — contact reads and writes for the installed app instance.
+- **Vitest** — unit tests for mapping and conflict logic.
+
+This is a self-managed Wix app integration. Wix CLI is not required for the current architecture: Wix sends signed webhook JWTs to our Next.js endpoints, and our backend calls Wix APIs using the installed app instance ID. Wix CLI event extensions are relevant if we later choose to move the webhook handling into a Wix-managed app project.
 
 ## Local setup
 
 1. Install Node.js 20 or newer.
-2. Install dependencies: `npm install`
-3. Copy `.env.example` to `.env.local` and fill in the values you have configured.
-4. Apply the SQL migration in `supabase/migrations` to your Supabase project.
-5. Start the app: `npm run dev`
+2. Clone this repository and run `npm install`.
+3. Copy `.env.example` to `.env.local`.
+4. Configure the environment variables below.
+5. Apply every SQL migration in `supabase/migrations` to the Supabase project. The connected Supabase project already has the initial schema, encrypted webhook payload support, and worker retry/lease migrations applied.
+6. Run `npm run dev` and open `http://localhost:3000`.
 
-Do not commit `.env.local`, access tokens, client secrets, webhook secrets, or real customer data.
+Never commit `.env.local`, OAuth credentials, encryption keys, webhook public keys with secrets (public keys are not secrets but should still be configured carefully), provider tokens, or real customer data.
 
-## Environment variables
+## Required environment variables
 
-See [`.env.example`](.env.example). OAuth and webhook secrets must be stored server-side. Never expose them through variables prefixed with `NEXT_PUBLIC_`.
+| Variable | Purpose |
+| --- | --- |
+| `APP_BASE_URL` | Public base URL of this app |
+| `DASHBOARD_PASSWORD` | Password used to sign in to the dashboard |
+| `SESSION_SECRET` | Random secret of at least 32 characters for signed admin sessions |
+| `TOKEN_ENCRYPTION_KEY` | 32-byte key, encoded as 64 hex characters or base64 |
+| `SUPABASE_URL` | Supabase project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service role key |
+| `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | HubSpot developer app credentials |
+| `HUBSPOT_REDIRECT_URI` | Must exactly match the HubSpot app callback URL |
+| `WIX_APP_ID` / `WIX_APP_SECRET` | Wix self-managed app credentials |
+| `WIX_WEBHOOK_PUBLIC_KEY` | RSA public key from the Wix app's Webhooks page |
+| `WIX_INSTANCE_ID` | Optional default installed Wix app instance ID |
+| `CRON_SECRET` | Secret for the scheduled queue dispatcher |
+| `ADMIN_API_KEY` | Optional server-to-server admin API credential |
 
-## Integration design
+Generate secrets locally, for example:
 
-- **HubSpot:** OAuth authorization code flow for user-authorized CRM access; validate state, exchange codes server-side, and store tokens securely.
-- **Wix:** configure the app according to the Wix app type and its current authentication model. Do not assume Wix uses the same OAuth token lifecycle as HubSpot.
-- **Webhooks:** verify provider authenticity before accepting events; persist accepted events before processing.
-- **Idempotency:** use provider event IDs where available and a stable deduplication key otherwise.
-- **Loop prevention:** persist source/system metadata and skip events caused by this integration where the provider supports reliable correlation.
-- **Conflict handling:** compare provider update timestamps when available; record the selected winner and reason for auditability.
+```bash
+openssl rand -hex 32
+```
 
-## Initial API plan
+Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, and `ADMIN_API_KEY`. The encryption key must not be changed after tokens have been stored unless you first re-encrypt those tokens.
+
+## Provider setup
+
+### HubSpot
+
+1. Create a HubSpot developer app with OAuth enabled.
+2. Add the exact callback URL configured in `HUBSPOT_REDIRECT_URI`.
+3. Request `crm.objects.contacts.read` and `crm.objects.contacts.write`.
+4. Add webhook subscriptions for contact creation and property changes, pointing to `/api/webhooks/hubspot`.
+5. Configure the app client ID and secret in the server environment.
+6. Sign in to the dashboard and choose **Connect HubSpot**. Authorize the intended test portal.
+
+### Wix
+
+1. Create a self-managed custom app in Wix Developer Center.
+2. Configure Contacts read/write permissions and subscribe to contact created/updated events and the relevant form submission event.
+3. Set the webhook callback URL to `/api/webhooks/wix`.
+4. Copy the app's public key from its Webhooks page into `WIX_WEBHOOK_PUBLIC_KEY`.
+5. Configure the Wix App ID and App Secret server-side.
+6. Install the app on the test Wix site, obtain its app instance ID, then connect the site from the dashboard.
+
+The Wix webhook receiver verifies the signed JWT body with the app's public key before persisting any event. Do not disable this check.
+
+## Queue processing
+
+Webhook receivers persist verified events and return quickly. They do not perform contact synchronization in the provider request.
+
+Schedule a POST to `/api/worker/dispatch` (for example, once per minute) with:
+
+```http
+Authorization: Bearer <CRON_SECRET>
+```
+
+The dispatcher processes due events, retries failures with bounded backoff, and recovers stale worker leases. The manual `/api/worker/process` endpoint can process a supplied batch of event UUIDs when needed.
+
+## Important routes
 
 | Route | Purpose |
 | --- | --- |
-| `GET /api/health` | Health check without exposing secrets |
-| `POST /api/webhooks/hubspot` | Receive verified HubSpot events |
-| `POST /api/webhooks/wix` | Receive verified Wix events |
+| `GET /api/health` | Health check |
+| `GET/POST/DELETE /api/admin/session` | Dashboard login/session |
+| `GET /api/admin/overview` | Connections, mappings, event and activity overview |
+| `GET/PUT /api/mappings` | Read/save field mappings |
 | `GET /api/oauth/hubspot/start` | Start HubSpot OAuth |
 | `GET /api/oauth/hubspot/callback` | Complete HubSpot OAuth |
-| `POST /api/connections/:provider/disconnect` | Revoke/disconnect a provider |
-| `GET/PUT /api/mappings` | Read and validate mapping configuration |
-| `POST /api/sync/run` | Trigger a controlled sync operation |
+| `POST /api/connections/wix` | Connect an installed Wix app instance |
+| `POST /api/connections/:provider/disconnect` | Disconnect a provider |
+| `POST /api/webhooks/wix` | Verify and queue Wix events |
+| `POST /api/webhooks/hubspot` | Verify and queue HubSpot events |
+| `POST /api/worker/dispatch` | Process due queued events |
+| `POST /api/sync/run` | Manually synchronize one contact |
 
-Routes are a design plan until implemented and tested.
+Dashboard mutation routes require the signed admin session. Worker routes require the CRON secret. Supabase service-role access is restricted to server modules.
 
 ## Development checks
 
-- `npm run lint`
-- `npm run typecheck`
-- `npm test`
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
 
-## Security checklist
-
-- Keep credentials server-side and out of logs.
-- Verify webhook signatures/timestamps according to each provider's documented scheme.
-- Validate request bodies and enforce payload size limits.
-- Use least-privilege scopes.
-- Protect dashboard and mutation endpoints with authentication and authorization.
-- Apply database row-level security where client access is enabled; use service credentials only on the server.
-- Avoid storing unnecessary personal data and provide a disconnect/data-retention path.
-
-## License
-
-No license has been selected yet. Until one is added, standard copyright applies.
+Run all checks before treating the assignment as complete. Also test both directions using dedicated test contacts, replay the same webhook twice, simulate an out-of-order update, and verify that a sync-generated webhook is ignored rather than creating a loop.
