@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 type Connection = {
   id: string; provider: "wix" | "hubspot"; external_account_id: string;
@@ -59,7 +59,7 @@ export default function HomePage() {
     return () => { active = false; };
   }, [loadDashboard]);
 
-  async function login(event: React.FormEvent<HTMLFormElement>) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setNotice("");
     try {
       const response = await fetch("/api/admin/session", {
