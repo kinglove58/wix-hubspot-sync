@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
       provider: "wix",
       eventId: event.eventId,
       eventType: event.eventType,
-      correlationId: contactId ?? event.instanceId,
+      correlationId: contactId,
       payload: {
         instanceId: event.instanceId,
         eventType: event.eventType,
