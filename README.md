@@ -78,11 +78,11 @@ Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_S
 ### Wix
 
 1. Create a self-managed custom app in Wix Developer Center.
-2. Configure the Wix **Read Contacts** and **Manage Contacts** permissions, then subscribe to contact created/updated events and the current Wix Forms submission event supported by your app. If you use the legacy Form Submitted event, also grant **Read Form Submissions**; Wix marks that legacy Forms API event as deprecated, so prefer the current Forms V2 event when available.
+2. Configure the Wix **Read Contacts** and **Manage Contacts** permissions, then subscribe to the App Instance Installed event, contact created/updated events, and the current Wix Forms submission event supported by your app. If you use the legacy Form Submitted event, also grant **Read Form Submissions**; Wix marks that legacy Forms API event as deprecated, so prefer the current Forms V2 event when available.
 3. Set the webhook callback URL to `/api/webhooks/wix`.
 4. Copy the public key shown in the webhook setup sample or from App Dashboard → Home → View ID and Keys into `WIX_WEBHOOK_PUBLIC_KEY`.
 5. Configure the Wix App ID and App Secret server-side.
-6. Install the app on the test Wix site, obtain its app instance ID, then connect the site from the dashboard.
+6. Install the app on the test Wix site. The first verified Wix webhook automatically bootstraps the site connection; if you do not receive the install event, paste the app instance ID into the dashboard as a fallback.
 
 The Wix webhook receiver verifies the signed JWT body with the app's public key before persisting any event. Do not disable this check.
 
