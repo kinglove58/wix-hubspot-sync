@@ -19,6 +19,12 @@ describe("OAuth token encryption", () => {
     expect(decryptToken(encrypted)).toBe(token);
   });
 
+  it("accepts a base64-encoded 32-byte key", () => {
+    process.env.TOKEN_ENCRYPTION_KEY = Buffer.alloc(32, 17).toString("base64");
+    const encrypted = encryptToken("base64-key-token");
+    expect(decryptToken(encrypted)).toBe("base64-key-token");
+  });
+
   it("uses a fresh nonce for each encryption", () => {
     process.env.TOKEN_ENCRYPTION_KEY = "b".repeat(64);
     expect(encryptToken("same-token")).not.toBe(encryptToken("same-token"));
