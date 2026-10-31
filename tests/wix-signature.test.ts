@@ -25,15 +25,14 @@ describe("Wix webhook JWT verification", () => {
       data: JSON.stringify({
         instanceId: "instance-123456",
         eventType: "wix.contacts.v4.contact_created",
-        eventId: "event-123",
-        data: JSON.stringify({ contactId: "contact-456" }),
+        data: JSON.stringify({ id: "event-123", entityId: "contact-456" }),
       }),
     });
     const event = verifyAndDecodeWixWebhook(jwt, publicKey, now);
     expect(event.instanceId).toBe("instance-123456");
     expect(event.eventType).toBe("wix.contacts.v4.contact_created");
     expect(event.eventId).toBe("event-123");
-    expect(event.data).toEqual({ contactId: "contact-456" });
+    expect(event.data).toEqual({ id: "event-123", entityId: "contact-456" });
   });
 
   it("rejects expired tokens and invalid signatures", () => {
