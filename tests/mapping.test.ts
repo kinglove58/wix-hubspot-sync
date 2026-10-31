@@ -21,13 +21,32 @@ describe("field mapping", () => {
     expect(transformValue(null, "lowercase")).toBeNull();
   });
 
-  it("reports missing fields and duplicate targets", () => {
+  it("reports missing fields and duplicate destinations", () => {
     expect(validateMappings([
       { sourceField: "", targetField: "email", direction: "both", transform: "none" },
       { sourceField: "name", targetField: "email", direction: "both", transform: "none" },
+      { sourceField: "phone", targetField: "email", direction: "wix_to_hubspot", transform: "none" },
     ])).toEqual([
       "Mapping 1: source field is required",
-      "Mapping 2: duplicate target field for direction both",
+      "Mapping 3: duplicate destination field for the configured sync direction",
+    ]);
+  });
+
+  it("detects reverse-direction collisions on the Wix destination path", () => {
+    expect(validateMappings([
+      { sourceField: "info.name.first", targetField: "firstname", direction: "hubspot_to_wix", transform: "none" },
+      { sourceField: "info.name.first", targetField: "given_name", direction: "hubspot_to_wix", transform: "none" },
+    ])).toEqual([
+      "Mapping 2: duplicate destination field for the configured sync direction",
+    ]);
+  });
+
+  it("detects collisions between bidirectional and one-way mappings", () => {
+    expect(validateMappings([
+      { sourceField: "info.name.first", targetField: "firstname", direction: "both", transform: "none" },
+      { sourceField: "info.name.last", targetField: "firstname", direction: "wix_to_hubspot", transform: "none" },
+    ])).toEqual([
+      "Mapping 2: duplicate destination field for the configured sync direction",
     ]);
   });
 });
