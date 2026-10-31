@@ -44,7 +44,12 @@ export function isAuthorizedAdmin(request: Request): boolean {
   const cookieHeader = request.headers.get("cookie") ?? "";
   const cookie = cookieHeader.split(";").map((part) => part.trim())
     .find((part) => part.startsWith(`${COOKIE_NAME}=`));
-  return cookie ? isValidSession(decodeURIComponent(cookie.slice(COOKIE_NAME.length + 1))) : false;
+  if (!cookie) return false;
+  try {
+    return isValidSession(decodeURIComponent(cookie.slice(COOKIE_NAME.length + 1)));
+  } catch {
+    return false;
+  }
 }
 
 export function adminSessionCookieName() { return COOKIE_NAME; }
