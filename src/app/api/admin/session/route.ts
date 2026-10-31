@@ -19,6 +19,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
   const password = body && typeof body === "object" ? (body as { password?: unknown }).password : undefined;
+  if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32 || !process.env.DASHBOARD_PASSWORD) {
+    return NextResponse.json({ error: "Dashboard authentication is not configured" }, { status: 503 });
+  }
   if (typeof password !== "string" || password.length > 512 || !verifyDashboardPassword(password)) {
     return NextResponse.json({ error: "Invalid password" }, { status: 401 });
   }
