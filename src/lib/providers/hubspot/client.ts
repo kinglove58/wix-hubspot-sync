@@ -76,8 +76,9 @@ export type HubSpotContact = {
   updatedAt?: string;
 };
 
-export function getHubSpotContact(id: string) {
-  const query = new URLSearchParams({ properties: "email,firstname,lastname,phone,company,website" });
+export function getHubSpotContact(id: string, extraProperties: string[] = []) {
+  const properties = [...new Set(["email", "firstname", "lastname", "phone", "company", "website", ...extraProperties])];
+  const query = new URLSearchParams({ properties: properties.join(",") });
   return hubspotRequest<HubSpotContact>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}?${query}`);
 }
 
