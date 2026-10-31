@@ -59,17 +59,21 @@ export async function queryWixContacts(
 }
 
 export async function getWixContact(instanceId: string, contactId: string): Promise<WixContact> {
-  return wixRequest(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`);
+  const response = await wixRequest<{ contact?: WixContact }>(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`);
+  if (!response.contact) throw new Error("Wix contact response did not include a contact");
+  return response.contact;
 }
 
 export async function createWixContact(
   instanceId: string,
   info: NonNullable<WixContact["info"]>,
 ): Promise<WixContact> {
-  return wixRequest(instanceId, "/contacts/v4/contacts", {
+  const response = await wixRequest<{ contact?: WixContact }>(instanceId, "/contacts/v4/contacts", {
     method: "POST",
     body: JSON.stringify({ info }),
   });
+  if (!response.contact) throw new Error("Wix create response did not include a contact");
+  return response.contact;
 }
 
 export async function updateWixContact(
@@ -78,8 +82,10 @@ export async function updateWixContact(
   revision: number,
   info: NonNullable<WixContact["info"]>,
 ): Promise<WixContact> {
-  return wixRequest(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`, {
+  const response = await wixRequest<{ contact?: WixContact }>(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`, {
     method: "PATCH",
     body: JSON.stringify({ revision, info }),
   });
+  if (!response.contact) throw new Error("Wix update response did not include a contact");
+  return response.contact;
 }
