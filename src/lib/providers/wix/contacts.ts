@@ -58,6 +58,16 @@ export async function queryWixContacts(
   });
 }
 
+export async function findWixContactByEmail(instanceId: string, email: string): Promise<WixContact | undefined> {
+  const response = await wixRequest<{ contacts?: WixContact[] }>(instanceId, "/contacts/v4/contacts/query", {
+    method: "POST",
+    body: JSON.stringify({ query: { search: email, paging: { limit: 10 } } }),
+  });
+  return response.contacts?.find((contact) =>
+    contact.info?.emails?.some((entry) => entry.email?.trim().toLowerCase() === email.trim().toLowerCase())
+  );
+}
+
 export async function getWixContact(instanceId: string, contactId: string): Promise<WixContact> {
   const response = await wixRequest<{ contact?: WixContact }>(instanceId, `/contacts/v4/contacts/${encodeURIComponent(contactId)}`);
   if (!response.contact) throw new Error("Wix contact response did not include a contact");
