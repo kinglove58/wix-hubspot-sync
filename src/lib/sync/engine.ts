@@ -90,7 +90,7 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   if (hubspotContactId) {
     result = await updateHubSpotContact(hubspotContactId, properties);
   } else {
-    const match = await findHubSpotContactByEmail(properties.email);
+    const match = await findHubSpotContactByEmail(properties.email!);
     result = match?.id
       ? await updateHubSpotContact(match.id, properties)
       : await createHubSpotContact(properties);
