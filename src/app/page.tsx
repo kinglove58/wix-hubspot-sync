@@ -112,6 +112,22 @@ export default function HomePage() {
     finally { setBusy(false); }
   }
 
+  async function disconnect(provider: "wix" | "hubspot") {
+    const connection = overview?.connections.find((item) => item.provider === provider);
+    if (!connection || !window.confirm(`Disconnect ${provider === "wix" ? "Wix" : "HubSpot"} from this integration?`)) return;
+    setBusy(true); setNotice("");
+    try {
+      const response = await fetch(`/api/connections/${provider}/disconnect`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ externalAccountId: connection.external_account_id }),
+      });
+      const data = await response.json();
+      setNotice(response.ok ? `${provider === "wix" ? "Wix" : "HubSpot"} disconnected.` : (data.error ?? "Disconnect failed."));
+      await loadDashboard();
+    } catch { setNotice("Disconnect failed."); }
+    finally { setBusy(false); }
+  }
+
   async function runSync(provider: "wix" | "hubspot") {
     const contactId = window.prompt(`Enter the ${provider === "wix" ? "Wix" : "HubSpot"} contact ID to synchronize:`);
     if (!contactId) return;
@@ -166,16 +182,18 @@ export default function HomePage() {
         <article className="panel provider-card">
           <div className="provider-head"><div><span className="provider-icon wix-icon">W</span><h2>Wix</h2></div><span className={wixConnected ? "pill connected" : "pill"}>{wixConnected ? "Connected" : "Not connected"}</span></div>
           <p className="muted">Connect the Wix app instance installed on your test site.</p>
-          <form onSubmit={connectWix} className="stack">
-            <label htmlFor="instanceId">Wix app instance ID</label>
-            <input id="instanceId" value={instanceId} onChange={(e) => setInstanceId(e.target.value)} placeholder="Paste instance ID" required />
-            <button disabled={busy || !instanceId.trim()}>{busy ? "Connecting…" : "Connect Wix site"}</button>
-          </form>
+          {wixConnected ? <button className="button-quiet" disabled={busy} onClick={() => disconnect("wix")}>Disconnect Wix</button> : (
+            <form onSubmit={connectWix} className="stack">
+              <label htmlFor="instanceId">Wix app instance ID</label>
+              <input id="instanceId" value={instanceId} onChange={(e) => setInstanceId(e.target.value)} placeholder="Paste instance ID" required />
+              <button disabled={busy || !instanceId.trim()}>{busy ? "Connecting…" : "Connect Wix site"}</button>
+            </form>
+          )}
         </article>
         <article className="panel provider-card">
           <div className="provider-head"><div><span className="provider-icon hubspot-icon">H</span><h2>HubSpot</h2></div><span className={hubspotConnected ? "pill connected" : "pill"}>{hubspotConnected ? "Connected" : "Not connected"}</span></div>
           <p className="muted">Authorize access to contacts in the correct HubSpot portal.</p>
-          <a className="button-link" href="/api/oauth/hubspot/start">Connect HubSpot</a>
+          {hubspotConnected ? <button className="button-quiet" disabled={busy} onClick={() => disconnect("hubspot")}>Disconnect HubSpot</button> : <a className="button-link" href="/api/oauth/hubspot/start">Connect HubSpot</a>}
         </article>
       </section>
 
