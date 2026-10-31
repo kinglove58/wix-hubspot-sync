@@ -4,7 +4,7 @@ A self-managed Next.js integration that synchronizes Wix contacts and form submi
 
 ## Current implementation
 
-- HubSpot OAuth authorization-code flow with state validation and encrypted access/refresh token storage.
+- HubSpot OAuth authorization-code flow using the current 2026-03 token API, state validation, encrypted access/refresh token storage, and refresh-token revocation on disconnect.
 - HubSpot access-token refresh and contact create/update/search APIs.
 - Wix self-managed app instance-token generation and encrypted token caching.
 - Wix webhook JWT verification with the app's RSA public key.
@@ -105,6 +105,7 @@ The dispatcher processes due events, retries failures with bounded backoff, and 
 | `GET /api/health` | Health check |
 | `GET/POST/DELETE /api/admin/session` | Dashboard login/session |
 | `GET /api/admin/overview` | Connections, mappings, event and activity overview |
+| `GET /api/fields` | Wix and HubSpot field suggestions for mapping |
 | `GET/PUT /api/mappings` | Read/save field mappings |
 | `GET /api/oauth/hubspot/start` | Start HubSpot OAuth |
 | `GET /api/oauth/hubspot/callback` | Complete HubSpot OAuth |
