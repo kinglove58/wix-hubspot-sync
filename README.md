@@ -4,7 +4,7 @@ A self-managed Next.js integration that synchronizes Wix contacts and form submi
 
 ## Current implementation
 
-- HubSpot OAuth authorization-code flow using the current 2026-03 token lifecycle API, plus 2026-09 CRM contact/property APIs, state validation, encrypted access/refresh token storage, and refresh-token revocation on disconnect.
+- HubSpot OAuth authorization-code flow using the current 2026-03 token lifecycle API, plus 2026-03 CRM contact/property APIs, state validation, encrypted access/refresh token storage, and refresh-token revocation on disconnect.
 - HubSpot access-token refresh and contact create/update/search APIs.
 - Wix self-managed app instance-token generation and encrypted token caching.
 - Wix webhook JWT verification with the app's RSA public key.
