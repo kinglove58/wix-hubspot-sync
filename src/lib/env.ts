@@ -11,16 +11,13 @@ const serverEnvSchema = z.object({
   WIX_APP_ID: z.string().optional(),
   WIX_APP_SECRET: z.string().optional(),
   WIX_WEBHOOK_SECRET: z.string().optional(),
+  WIX_INSTANCE_ID: z.string().optional(),
   APP_ENCRYPTION_KEY: z.string().optional(),
+  ADMIN_API_KEY: z.string().optional(),
 });
 
-export function getServerEnv() {
-  return serverEnvSchema.parse(process.env);
-}
-
+export function getServerEnv() { return serverEnvSchema.parse(process.env); }
 export function requireEnv(name: string, value: string | undefined): string {
-  if (!value) {
-    throw new Error(`Missing required server environment variable: ${name}`);
-  }
+  if (!value) throw new Error(`Missing required server environment variable: ${name}`);
   return value;
 }
