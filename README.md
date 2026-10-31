@@ -68,7 +68,7 @@ Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_S
 
 ### HubSpot
 
-1. Create a HubSpot developer app with OAuth enabled.
+1. Create a project-based app in the HubSpot Developer Platform (use Projects version 2026.09) and enable OAuth.
 2. Add the exact callback URL configured in `HUBSPOT_REDIRECT_URI`.
 3. Request `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.read`, and `crm.schemas.contacts.write` for property discovery and form attribution fields.
 4. Add webhook subscriptions for contact creation and property changes, pointing to `/api/webhooks/hubspot`.
