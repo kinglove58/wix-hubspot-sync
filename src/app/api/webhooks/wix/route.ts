@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     const { data: existingConnection, error: connectionError } = await getSupabaseAdmin()
       .from("provider_connections").select("id")
       .eq("provider", "wix").eq("external_account_id", event.instanceId)
-      .is("disconnected_at", null).maybeSingle();
+      .maybeSingle();
     if (connectionError) throw new Error("Unable to inspect Wix connection");
     if (!existingConnection) {
       const token = await requestWixInstanceToken(event.instanceId);
