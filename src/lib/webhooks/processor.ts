@@ -3,6 +3,7 @@ import "server-only";
 import { getHubSpotContact } from "@/lib/providers/hubspot/client";
 import { syncHubSpotContactToWix, syncWixContactToHubSpot } from "@/lib/sync/engine";
 import { syncWixFormSubmissionToHubSpot } from "@/lib/sync/form-submission";
+import { listEnabledMappings } from "@/lib/sync/mapping-repository";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import {
   claimPendingWebhookEvent,
@@ -137,7 +138,11 @@ export async function processWebhookEvent(eventId: string): Promise<ProcessResul
         return "ignored";
       }
 
-      const contact = await getHubSpotContact(hubspotContactId);
+      const { hubspot } = await import("@/lib/sync/connection-repository").then((module) =>
+        module.resolveProviderConnections(wixConnection.external_account_id as string)
+      );
+      const mappings = await listEnabledMappings(wixConnection.id, hubspot.id);
+      const contact = await getHubSpotContact(hubspotContactId, mappings.map((mapping) => mapping.targetField));
       if (!contact.id) throw new Error("HubSpot contact response is incomplete");
       await syncHubSpotContactToWix(wixConnection.external_account_id, hubspotContactId, contact);
       await finishWebhookEvent(eventId, "succeeded");
