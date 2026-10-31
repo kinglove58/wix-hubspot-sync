@@ -1,7 +1,7 @@
 import type { FieldMapping } from "@/lib/sync/mapping";
 import { transformValue } from "@/lib/sync/mapping";
 
-const isIndex = (segment: string) => /^\d+$/.test(segment);
+const isIndex = (segment: string) => /^\d+$/.test(segment) && Number(segment) <= 99;
 const blockedSegments = new Set(["__proto__", "prototype", "constructor"]);
 
 function readPath(source: Record<string, unknown>, path: string): unknown {
