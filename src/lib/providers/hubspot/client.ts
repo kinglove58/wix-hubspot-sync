@@ -79,29 +79,29 @@ export type HubSpotContact = {
 export function getHubSpotContact(id: string, extraProperties: string[] = []) {
   const properties = [...new Set(["email", "firstname", "lastname", "phone", "company", "website", ...extraProperties])];
   const query = new URLSearchParams({ properties: properties.join(",") });
-  return hubspotRequest<HubSpotContact>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}?${query}`);
+  return hubspotRequest<HubSpotContact>(`/crm/objects/2026-03/contacts/${encodeURIComponent(id)}?${query}`);
 }
 
 export function listHubSpotContacts(after?: string) {
   const query = new URLSearchParams({ limit: "100", properties: "email,firstname,lastname,phone,company,website" });
   if (after) query.set("after", after);
-  return hubspotRequest<{ results: HubSpotContact[]; paging?: { next?: { after: string } } }>(`/crm/v3/objects/contacts?${query}`);
+  return hubspotRequest<{ results: HubSpotContact[]; paging?: { next?: { after: string } } }>(`/crm/objects/2026-03/contacts?${query}`);
 }
 
 export function createHubSpotContact(properties: Record<string, string>) {
-  return hubspotRequest<HubSpotContact>("/crm/v3/objects/contacts", {
+  return hubspotRequest<HubSpotContact>("/crm/objects/2026-03/contacts", {
     method: "POST", body: JSON.stringify({ properties }),
   });
 }
 
 export function updateHubSpotContact(id: string, properties: Record<string, string>) {
-  return hubspotRequest<HubSpotContact>(`/crm/v3/objects/contacts/${encodeURIComponent(id)}`, {
+  return hubspotRequest<HubSpotContact>(`/crm/objects/2026-03/contacts/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify({ properties }),
   });
 }
 
 export async function findHubSpotContactByEmail(email: string): Promise<HubSpotContact | null> {
-  const result = await hubspotRequest<{ results: HubSpotContact[] }>("/crm/v3/objects/contacts/search", {
+  const result = await hubspotRequest<{ results: HubSpotContact[] }>("/crm/objects/2026-03/contacts/search", {
     method: "POST",
     body: JSON.stringify({
       filterGroups: [{ filters: [{ propertyName: "email", operator: "EQ", value: email }] }],
@@ -129,7 +129,7 @@ export async function ensureHubSpotFormAttributionProperties(extraProperties: Ar
   const token = await accessToken(await connection());
   const properties = [...FORM_ATTRIBUTION_PROPERTIES, ...extraProperties];
   for (const property of properties) {
-    const response = await fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
+    const response = await fetch("https://api.hubapi.com/crm/properties/2026-03/contacts", {
       method: "POST",
       headers: {
         authorization: `Bearer ${token}`,
@@ -155,7 +155,7 @@ export async function ensureHubSpotFormAttributionProperties(extraProperties: Ar
 
 export async function listHubSpotContactProperties(): Promise<Array<{ name: string; label: string; type: string }>> {
   const result = await hubspotRequest<{ results: Array<{ name: string; label: string; type: string }> }>(
-    "/crm/v3/properties/contacts?archived=false",
+    "/crm/properties/2026-03/contacts?archived=false",
   );
   return result.results ?? [];
 }
