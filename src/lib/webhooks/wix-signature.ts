@@ -17,8 +17,8 @@ export function verifyAndDecodeWixWebhook(
 ): WixWebhookEvent {
   const parts = jwt.trim().split(".");
   if (parts.length !== 3 || !publicKey.trim()) throw new Error("Malformed Wix webhook JWT");
-
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
+
   const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as { alg?: string };
   if (header.alg !== "RS256") throw new Error("Unsupported Wix webhook signature algorithm");
 
@@ -26,24 +26,29 @@ export function verifyAndDecodeWixWebhook(
   verifier.update(`${encodedHeader}.${encodedPayload}`);
   verifier.end();
   const pem = publicKey.replace(/\\n/g, "\n");
-  const signatureValid = verifier.verify(pem, Buffer.from(encodedSignature, "base64url"));
-  if (!signatureValid) throw new Error("Invalid Wix webhook signature");
+  if (!verifier.verify(pem, Buffer.from(encodedSignature, "base64url"))) {
+    throw new Error("Invalid Wix webhook signature");
+  }
 
   const claims = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as {
-    iat?: number; exp?: number; instanceId?: string; eventType?: string; data?: unknown; eventId?: string;
+    iat?: number; exp?: number; data?: unknown;
   };
   if (!claims.exp || claims.exp <= nowSeconds) throw new Error("Expired Wix webhook");
   if (claims.iat && claims.iat > nowSeconds + 60) throw new Error("Wix webhook issued in the future");
-  if (!claims.instanceId || !claims.eventType || claims.data === undefined) {
-    throw new Error("Incomplete Wix webhook claims");
-  }
+  if (claims.data === undefined) throw new Error("Wix webhook data is missing");
 
+  // Wix places the event object inside the JWT's data claim. The event object
+  // itself contains instanceId, eventType and a JSON-encoded data property.
   const rawEvent = typeof claims.data === "string"
     ? JSON.parse(claims.data) as Record<string, unknown>
     : claims.data as Record<string, unknown>;
   if (!rawEvent || typeof rawEvent !== "object" || Array.isArray(rawEvent)) {
     throw new Error("Malformed Wix event data");
   }
+
+  const instanceId = typeof rawEvent.instanceId === "string" ? rawEvent.instanceId : "";
+  const eventType = typeof rawEvent.eventType === "string" ? rawEvent.eventType : "";
+  if (!instanceId || !eventType) throw new Error("Wix event identity is missing");
 
   const innerData = typeof rawEvent.data === "string"
     ? JSON.parse(rawEvent.data) as Record<string, unknown>
@@ -53,9 +58,10 @@ export function verifyAndDecodeWixWebhook(
   }
 
   return {
-    instanceId: claims.instanceId,
-    eventType: claims.eventType,
-    eventId: claims.eventId ?? (typeof rawEvent.id === "string" ? rawEvent.id : undefined),
+    instanceId,
+    eventType,
+    eventId: typeof rawEvent.eventId === "string" ? rawEvent.eventId
+      : typeof rawEvent.id === "string" ? rawEvent.id : undefined,
     data: innerData,
     rawEvent,
   };
