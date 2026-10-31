@@ -5,7 +5,7 @@ import { encryptToken } from "@/lib/security/token-crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 const HUBSPOT_AUTHORIZE_URL = "https://app.hubspot.com/oauth/authorize";
-const HUBSPOT_TOKEN_URL = "https://api.hubapi.com/oauth/v1/token";
+const HUBSPOT_TOKEN_URL = "https://api.hubspot.com/oauth/v3/token";
 
 function required(value: string | undefined, name: string): string {
   if (!value?.trim()) throw new Error(`${name} is not configured`);
