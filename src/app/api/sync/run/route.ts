@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getHubSpotContact } from "@/lib/providers/hubspot/client";
 import { syncHubSpotContactToWix, syncWixContactToHubSpot } from "@/lib/sync/engine";
+import { resolveProviderConnections } from "@/lib/sync/connection-repository";
+import { listEnabledMappings } from "@/lib/sync/mapping-repository";
 import { isAuthorizedAdmin } from "@/lib/security/admin-auth";
 import { getServerEnv } from "@/lib/env";
 
@@ -25,7 +27,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(result);
     }
 
-    const contact = await getHubSpotContact(input.contactId);
+    const connections = await resolveProviderConnections(instanceId);
+    const mappings = await listEnabledMappings(connections.wix.id, connections.hubspot.id);
+    const contact = await getHubSpotContact(input.contactId, mappings.map((mapping) => mapping.targetField));
     if (!contact.id) return NextResponse.json({ error: "HubSpot contact was not found" }, { status: 404 });
     const result = await syncHubSpotContactToWix(instanceId, input.contactId, contact);
     return NextResponse.json(result);
