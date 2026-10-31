@@ -10,7 +10,6 @@ const serverEnvSchema = z.object({
   HUBSPOT_SCOPES: z.string().default("crm.objects.contacts.read crm.objects.contacts.write crm.schemas.contacts.read crm.schemas.contacts.write"),
   WIX_APP_ID: z.string().optional(),
   WIX_APP_SECRET: z.string().optional(),
-  WIX_WEBHOOK_SECRET: z.string().optional(),
   WIX_WEBHOOK_PUBLIC_KEY: z.string().optional(),
   WIX_INSTANCE_ID: z.string().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
