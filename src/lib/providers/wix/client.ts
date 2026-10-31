@@ -22,6 +22,7 @@ export async function requestWixInstanceToken(instanceId: string): Promise<WixAc
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ grant_type: "client_credentials", client_id: appId, client_secret: appSecret, instance_id: instanceId }),
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`Wix token request failed with status ${response.status}`);
   const token = (await response.json()) as WixAccessToken;
