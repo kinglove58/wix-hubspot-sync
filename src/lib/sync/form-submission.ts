@@ -21,7 +21,7 @@ function normalizeKey(value: string): string {
 
 function flattenFields(data: UnknownRecord): Record<string, unknown> {
   const output: Record<string, unknown> = {};
-  const raw = data.fields ?? data.answers ?? data.formFields;
+  const raw = data.fields ?? data.answers ?? data.formFields ?? data.submissionData;
   if (Array.isArray(raw)) {
     for (const item of raw) {
       const field = record(item);
