@@ -26,7 +26,7 @@ export function buildHubSpotAuthorizationUrl(state: string): string {
   const clientId = required(process.env.HUBSPOT_CLIENT_ID, "HUBSPOT_CLIENT_ID");
   const redirectUri = required(process.env.HUBSPOT_REDIRECT_URI, "HUBSPOT_REDIRECT_URI");
   const scopes = (process.env.HUBSPOT_SCOPES ??
-    "crm.objects.contacts.read crm.objects.contacts.write").trim();
+    "crm.objects.contacts.read crm.objects.contacts.write crm.schemas.contacts.write").trim();
 
   const url = new URL(HUBSPOT_AUTHORIZE_URL);
   url.searchParams.set("client_id", clientId);
