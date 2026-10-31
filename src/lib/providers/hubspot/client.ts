@@ -151,3 +151,11 @@ export async function ensureHubSpotFormAttributionProperties(extraProperties: Ar
     }
   }
 }
+
+
+export async function listHubSpotContactProperties(): Promise<Array<{ name: string; label: string; type: string }>> {
+  const result = await hubspotRequest<{ results: Array<{ name: string; label: string; type: string }> }>(
+    "/crm/v3/properties/contacts?archived=false",
+  );
+  return result.results ?? [];
+}
