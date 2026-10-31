@@ -56,12 +56,27 @@ export async function PUT(request: NextRequest) {
       wix_field: m.wixField, hubspot_property: m.hubspotProperty,
       sync_direction: m.direction, transform: m.transform, enabled: m.enabled,
     }));
-    const { error: deleteError } = await db.from("field_mappings").delete()
-      .eq("wix_connection_id", wix.id).eq("hubspot_connection_id", hubspot.id);
-    if (deleteError) throw deleteError;
     if (rows.length) {
-      const { error: insertError } = await db.from("field_mappings").insert(rows);
-      if (insertError) throw insertError;
+      const { error: upsertError } = await db.from("field_mappings").upsert(rows, {
+        onConflict: "wix_connection_id,hubspot_connection_id,wix_field,hubspot_property",
+      });
+      if (upsertError) throw upsertError;
+    }
+
+    const { data: existingRows, error: existingError } = await db.from("field_mappings")
+      .select("id,wix_field,hubspot_property")
+      .eq("wix_connection_id", wix.id)
+      .eq("hubspot_connection_id", hubspot.id);
+    if (existingError) throw existingError;
+    const desiredPairs = new Set(payload.mappings.map((mapping) =>
+      `${mapping.wixField.toLowerCase()}::${mapping.hubspotProperty.toLowerCase()}`
+    ));
+    const staleIds = (existingRows ?? []).filter((row) =>
+      !desiredPairs.has(`${row.wix_field.toLowerCase()}::${row.hubspot_property.toLowerCase()}`)
+    ).map((row) => row.id);
+    if (staleIds.length) {
+      const { error: deleteError } = await db.from("field_mappings").delete().in("id", staleIds);
+      if (deleteError) throw deleteError;
     }
     return NextResponse.json({ saved: true, count: rows.length });
   } catch (error) {
