@@ -37,7 +37,7 @@ async function accessToken(row: Connection): Promise<string> {
     client_secret: clientSecret,
     refresh_token: decryptToken(row.encrypted_refresh_token),
   });
-  const response = await fetch("https://api.hubapi.com/oauth/v1/token", {
+  const response = await fetch("https://api.hubspot.com/oauth/v3/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
