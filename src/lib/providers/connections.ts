@@ -56,6 +56,7 @@ export async function disconnectProvider(provider: Provider, externalAccountId: 
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
       cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error("HubSpot token revocation failed; local credentials were retained");
   }
