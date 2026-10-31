@@ -75,9 +75,30 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
   const firstName = pick(fields, ["firstName", "first_name", "givenName"]);
   const lastName = pick(fields, ["lastName", "last_name", "surname", "familyName"]);
   const phone = pick(fields, ["phone", "phoneNumber", "mobile"]);
+  const company = pick(fields, ["company", "companyName", "organization"]);
   if (firstName) properties.firstname = firstName;
   if (lastName) properties.lastname = lastName;
   if (phone) properties.phone = phone;
+  if (company) properties.company = company;
+
+  const standardFields = new Set([
+    "email", "emailaddress", "e-mail", "firstname", "first_name", "givenname",
+    "lastname", "last_name", "surname", "familyname", "phone", "phonenumber",
+    "mobile", "company", "companyname", "organization",
+  ].map(normalizeKey));
+  const customPropertyDefinitions: Array<{ name: string; label: string }> = [];
+  for (const [fieldKey, value] of Object.entries(fields)) {
+    if (standardFields.has(fieldKey) || value == null ||
+        !["string", "number", "boolean"].includes(typeof value)) continue;
+    const textValue = String(value).trim();
+    if (!textValue) continue;
+    const propertyName = `wix_form_${fieldKey.slice(0, 60)}`;
+    properties[propertyName] = textValue;
+    customPropertyDefinitions.push({
+      name: propertyName,
+      label: `Wix Form ${fieldKey.slice(0, 40)}`,
+    });
+  }
 
   const utm = record(eventData.utm ?? submission.utm ?? context.utm);
   const pageContext = record(eventData.page ?? context.page);
@@ -94,7 +115,7 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
   };
   for (const [key, value] of Object.entries(attribution)) if (value) properties[key] = value;
 
-  await ensureHubSpotFormAttributionProperties();
+  await ensureHubSpotFormAttributionProperties(customPropertyDefinitions);
   const existing = await findHubSpotContactByEmail(email);
   const saved = existing?.id
     ? await updateHubSpotContact(existing.id, properties)
