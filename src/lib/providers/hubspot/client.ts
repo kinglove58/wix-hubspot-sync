@@ -42,6 +42,7 @@ async function accessToken(row: Connection): Promise<string> {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) throw new Error(`HubSpot token refresh failed: ${response.status}`);
   const token = await response.json() as { access_token: string; refresh_token?: string; expires_in: number };
@@ -144,6 +145,7 @@ export async function ensureHubSpotFormAttributionProperties(extraProperties: Ar
         formField: true,
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(15_000),
     });
     // A 409 means the property already exists; all other failures are surfaced.
     if (!response.ok && response.status !== 409) {
