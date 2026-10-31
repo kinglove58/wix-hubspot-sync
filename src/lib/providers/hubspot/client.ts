@@ -125,9 +125,10 @@ const FORM_ATTRIBUTION_PROPERTIES = [
 ] as const;
 
 /** Ensure the optional attribution properties exist before writing form leads. */
-export async function ensureHubSpotFormAttributionProperties(): Promise<void> {
+export async function ensureHubSpotFormAttributionProperties(extraProperties: Array<{ name: string; label: string }> = []): Promise<void> {
   const token = await accessToken(await connection());
-  for (const property of FORM_ATTRIBUTION_PROPERTIES) {
+  const properties = [...FORM_ATTRIBUTION_PROPERTIES, ...extraProperties];
+  for (const property of properties) {
     const response = await fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
       method: "POST",
       headers: {
