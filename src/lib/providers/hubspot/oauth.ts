@@ -42,6 +42,7 @@ interface HubSpotTokenResponse {
   expires_in: number;
   hub_id: number;
   token_type: string;
+  scopes?: string[];
 }
 
 export async function exchangeHubSpotCode(code: string): Promise<void> {
@@ -82,8 +83,10 @@ export async function exchangeHubSpotCode(code: string): Promise<void> {
       encrypted_access_token: encryptToken(token.access_token),
       encrypted_refresh_token: encryptToken(token.refresh_token),
       token_expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
+      scopes: token.scopes ?? [],
       connected_at: new Date().toISOString(),
       disconnected_at: null,
+      updated_at: new Date().toISOString(),
     },
     { onConflict: "provider,external_account_id" },
   );
