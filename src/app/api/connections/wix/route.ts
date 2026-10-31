@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerEnv } from "@/lib/env";
-import { getWixInstanceToken } from "@/lib/providers/wix";
+import { requestWixInstanceToken } from "@/lib/providers/wix/client";
 import { saveProviderConnection } from "@/lib/providers/connections";
 import { isAuthorizedAdmin } from "@/lib/security/admin-auth";
 
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = bodySchema.parse(await request.json());
-    const token = await getWixInstanceToken(env.WIX_APP_ID, env.WIX_APP_SECRET, body.instanceId);
+    const token = await requestWixInstanceToken(body.instanceId);
     const connection = await saveProviderConnection({
       provider: "wix", externalAccountId: body.instanceId, accountLabel: "Wix site",
       accessToken: token.access_token, expiresIn: token.expires_in,
