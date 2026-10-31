@@ -100,7 +100,7 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
     });
   }
 
-  const utm = record(eventData.utm ?? submission.utm ?? context.utm);
+  const utm = record(eventData.utm ?? submission.utm ?? context.utm ?? eventData.utmParameters ?? context.utmParameters);
   const pageContext = record(eventData.page ?? context.page);
   const sourceObjects = [eventData, submission, context, utm, pageContext];
   const attribution: Record<string, string | undefined> = {
@@ -113,6 +113,16 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
     lead_referrer: textAt(sourceObjects, ["referrer", "referer", "referrerUrl"]),
     form_submitted_at: textAt(sourceObjects, ["submittedAt", "submissionTime", "createdDate", "timestamp"]) ?? new Date().toISOString(),
   };
+  if (attribution.landing_page_url) {
+    try {
+      const page = new URL(attribution.landing_page_url);
+      for (const key of ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"] as const) {
+        attribution[key] ??= page.searchParams.get(key) ?? undefined;
+      }
+    } catch {
+      // Keep the supplied page URL as-is; malformed URLs are not used for UTM extraction.
+    }
+  }
   for (const [key, value] of Object.entries(attribution)) if (value) properties[key] = value;
 
   await ensureHubSpotFormAttributionProperties(customPropertyDefinitions);
