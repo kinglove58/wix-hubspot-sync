@@ -63,6 +63,7 @@ export async function exchangeHubSpotCode(code: string): Promise<void> {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
 
   if (!response.ok) {
