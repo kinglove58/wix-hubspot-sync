@@ -15,6 +15,8 @@ const serverEnvSchema = z.object({
   WIX_INSTANCE_ID: z.string().optional(),
   TOKEN_ENCRYPTION_KEY: z.string().optional(),
   ADMIN_API_KEY: z.string().optional(),
+  DASHBOARD_PASSWORD: z.string().optional(),
+  SESSION_SECRET: z.string().optional(),
   CRON_SECRET: z.string().optional(),
 });
 
