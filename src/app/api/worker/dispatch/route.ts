@@ -11,18 +11,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const db = getSupabaseAdmin();
   const now = new Date().toISOString();
-  const { data, error } = await getSupabaseAdmin()
-    .from("webhook_events")
-    .select("id")
-    .in("status", ["pending", "failed"])
-    .lt("attempts", 5)
-    .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
-    .order("received_at", { ascending: true })
-    .limit(20);
+  const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const [ready, stale] = await Promise.all([
+    db.from("webhook_events").select("id")
+      .in("status", ["pending", "failed"]).lt("attempts", 5)
+      .or(`next_attempt_at.is.null,next_attempt_at.lte.${now}`)
+      .order("received_at", { ascending: true }).limit(20),
+    db.from("webhook_events").select("id")
+      .eq("status", "processing").lt("processing_started_at", staleBefore)
+      .order("received_at", { ascending: true }).limit(20),
+  ]);
+  if (ready.error || stale.error) return NextResponse.json({ error: "Unable to load queued events" }, { status: 500 });
 
-  if (error) return NextResponse.json({ error: "Unable to load queued events" }, { status: 500 });
-  const ids = (data ?? []).map((item) => item.id as string);
+  const ids = [...new Set([...(ready.data ?? []), ...(stale.data ?? [])].map((item) => item.id as string))].slice(0, 20);
   const results = await Promise.allSettled(ids.map((id) => processWebhookEvent(id)));
   const succeeded = results.filter((result) => result.status === "fulfilled" && result.value === "succeeded").length;
   const ignored = results.filter((result) => result.status === "fulfilled" && result.value === "ignored").length;
