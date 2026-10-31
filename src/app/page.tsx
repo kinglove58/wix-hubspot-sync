@@ -188,7 +188,7 @@ export default function HomePage() {
       <section className="provider-grid">
         <article className="panel provider-card">
           <div className="provider-head"><div><span className="provider-icon wix-icon">W</span><h2>Wix</h2></div><span className={wixConnected ? "pill connected" : "pill"}>{wixConnected ? "Connected" : "Not connected"}</span></div>
-          <p className="muted">Connect the Wix app instance installed on your test site.</p>
+          <p className="muted">Normally connects automatically from the signed Wix install webhook. Use the instance ID below only as a fallback.</p>
           {wixConnected ? <button className="button-quiet" disabled={busy} onClick={() => disconnect("wix")}>Disconnect Wix</button> : (
             <form onSubmit={connectWix} className="stack">
               <label htmlFor="instanceId">Wix app instance ID</label>
