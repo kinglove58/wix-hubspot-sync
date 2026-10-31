@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     try {
       const properties = await listHubSpotContactProperties();
       hubspotProperties = properties
-        .filter((property) => property.type === "string" || property.type === "number" || property.type === "bool" || property.type === "date" || property.type === "datetime")
+        .filter((property) => Boolean(property.name))
         .map((property) => ({ value: property.name, label: property.label || property.name }));
     } catch {
       // Keep the standard property suggestions available if HubSpot is temporarily unavailable.
