@@ -70,7 +70,7 @@ Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_S
 
 1. Create a HubSpot developer app with OAuth enabled.
 2. Add the exact callback URL configured in `HUBSPOT_REDIRECT_URI`.
-3. Request `crm.objects.contacts.read` and `crm.objects.contacts.write`.
+3. Request `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.read`, and `crm.schemas.contacts.write` for property discovery and form attribution fields.
 4. Add webhook subscriptions for contact creation and property changes, pointing to `/api/webhooks/hubspot`.
 5. Configure the app client ID and secret in the server environment.
 6. Sign in to the dashboard and choose **Connect HubSpot**. Authorize the intended test portal.
