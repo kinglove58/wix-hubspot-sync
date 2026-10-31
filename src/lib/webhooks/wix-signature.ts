@@ -60,8 +60,8 @@ export function verifyAndDecodeWixWebhook(
   return {
     instanceId,
     eventType,
-    eventId: typeof rawEvent.eventId === "string" ? rawEvent.eventId
-      : typeof rawEvent.id === "string" ? rawEvent.id : undefined,
+    eventId: typeof innerData.id === "string" ? innerData.id
+      : typeof rawEvent.eventId === "string" ? rawEvent.eventId : undefined,
     data: innerData,
     rawEvent,
   };
