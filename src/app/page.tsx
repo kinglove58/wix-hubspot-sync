@@ -24,6 +24,13 @@ const emptyMapping = (): Mapping => ({
   direction: "bidirectional", transform: "trim", enabled: true,
 });
 
+const DEFAULT_MAPPINGS: Mapping[] = [
+  { wixField: "info.emails.0.email", hubspotProperty: "email", direction: "bidirectional", transform: "trim", enabled: true },
+  { wixField: "info.name.first", hubspotProperty: "firstname", direction: "bidirectional", transform: "trim", enabled: true },
+  { wixField: "info.name.last", hubspotProperty: "lastname", direction: "bidirectional", transform: "trim", enabled: true },
+  { wixField: "info.phones.0.phone", hubspotProperty: "phone", direction: "bidirectional", transform: "trim", enabled: true },
+];
+
 export default function HomePage() {
   const [authenticated, setAuthenticated] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -42,10 +49,10 @@ export default function HomePage() {
     if (!response.ok) { setNotice("Unable to load dashboard data."); return; }
     const data = await response.json() as Overview;
     setOverview(data);
-    setMappings(data.mappings.map((item) => ({
+    setMappings(data.mappings.length ? data.mappings.map((item) => ({
       wixField: item.wix_field, hubspotProperty: item.hubspot_property,
       direction: item.sync_direction, transform: item.transform, enabled: item.enabled,
-    })));
+    })) : DEFAULT_MAPPINGS);
     const fieldsResponse = await fetch("/api/fields", { cache: "no-store" });
     if (fieldsResponse.ok) {
       const fields = await fieldsResponse.json() as { wixFields: FieldOption[]; hubspotProperties: FieldOption[] };
