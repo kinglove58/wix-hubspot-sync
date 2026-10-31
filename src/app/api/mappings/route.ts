@@ -6,8 +6,8 @@ import { isAuthorizedAdmin } from "@/lib/security/admin-auth";
 export const runtime = "nodejs";
 
 const mappingSchema = z.object({
-  wixField: z.string().trim().min(1).max(120),
-  hubspotProperty: z.string().trim().min(1).max(120),
+  wixField: z.string().trim().min(1).max(120).regex(/^[A-Za-z0-9_.]+$/),
+  hubspotProperty: z.string().trim().min(1).max(120).regex(/^[A-Za-z][A-Za-z0-9_]*$/),
   direction: z.enum(["wix_to_hubspot", "hubspot_to_wix", "bidirectional"]),
   transform: z.enum(["none", "trim", "lowercase", "uppercase"]).default("none"),
   enabled: z.boolean().default(true),
