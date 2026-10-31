@@ -8,7 +8,8 @@ export const runtime = "nodejs";
 function contactIdFrom(data: Record<string, unknown>, rawEvent: Record<string, unknown>): string | undefined {
   const contact = data.contact && typeof data.contact === "object"
     ? data.contact as Record<string, unknown> : {};
-  const candidates = [data.contactId, data.id, data.entityId, rawEvent.entityId, contact.id];
+  // Wix eventData.id is the unique webhook event ID; entityId identifies the contact.
+  const candidates = [data.contactId, data.entityId, rawEvent.entityId, contact.id, data.id];
   const value = candidates.find((item) => typeof item === "string" || typeof item === "number");
   return value === undefined ? undefined : String(value);
 }
