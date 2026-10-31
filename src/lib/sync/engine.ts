@@ -7,6 +7,7 @@ import {
 } from "@/lib/providers/hubspot/client";
 import {
   createWixContact,
+  findWixContactByEmail,
   getWixContact,
   updateWixContact,
   type WixContact,
@@ -163,7 +164,13 @@ export async function syncHubSpotContactToWix(
     if (typeof current.revision !== "number" || !current.id) throw new Error("Wix contact revision is missing");
     wix = await updateWixContact(instanceId, current.id, current.revision, info);
   } else {
-    wix = await createWixContact(instanceId, info);
+    const existingWix = email ? await findWixContactByEmail(instanceId, email) : undefined;
+    if (existingWix?.id) {
+      if (typeof existingWix.revision !== "number") throw new Error("Matched Wix contact revision is missing");
+      wix = await updateWixContact(instanceId, existingWix.id, existingWix.revision, info);
+    } else {
+      wix = await createWixContact(instanceId, info);
+    }
   }
   if (!wix.id) throw new Error("Wix did not return a contact ID");
 
