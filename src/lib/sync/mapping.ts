@@ -23,23 +23,46 @@ export function transformValue(value: unknown, transform: FieldTransform): unkno
   }
 }
 
+/**
+ * Validate destination collisions in each actual sync direction.
+ * A bidirectional mapping occupies a destination on both providers:
+ * targetField in HubSpot and sourceField in Wix.
+ */
 export function validateMappings(mappings: FieldMapping[]): string[] {
   const errors: string[] = [];
-  const seenTargets = new Set<string>();
+  const destinations = new Map<string, number>();
 
   mappings.forEach((mapping, index) => {
     const prefix = `Mapping ${index + 1}`;
-    if (!mapping.sourceField.trim()) errors.push(`${prefix}: source field is required`);
-    if (!mapping.targetField.trim()) errors.push(`${prefix}: target field is required`);
+    const source = mapping.sourceField.trim();
+    const target = mapping.targetField.trim();
+
+    if (!source) errors.push(`${prefix}: source field is required`);
+    if (!target) errors.push(`${prefix}: target field is required`);
     if (!["none", "trim", "lowercase", "uppercase"].includes(mapping.transform)) {
       errors.push(`${prefix}: unsupported transform`);
     }
-
-    const targetKey = `${mapping.direction}:${mapping.targetField.trim().toLowerCase()}`;
-    if (mapping.targetField.trim() && seenTargets.has(targetKey)) {
-      errors.push(`${prefix}: duplicate target field for direction ${mapping.direction}`);
+    if (!["wix_to_hubspot", "hubspot_to_wix", "both"].includes(mapping.direction)) {
+      errors.push(`${prefix}: unsupported sync direction`);
+      return;
     }
-    if (mapping.targetField.trim()) seenTargets.add(targetKey);
+    if (!source || !target) return;
+
+    const directions = mapping.direction === "both"
+      ? ["wix_to_hubspot", "hubspot_to_wix"] as const
+      : [mapping.direction] as const;
+
+    let duplicate = false;
+    for (const direction of directions) {
+      const destination = direction === "wix_to_hubspot" ? target : source;
+      const key = `${direction}:${destination.toLowerCase()}`;
+      if (destinations.has(key)) duplicate = true;
+      else destinations.set(key, index);
+    }
+
+    if (duplicate) {
+      errors.push(`${prefix}: duplicate destination field for the configured sync direction`);
+    }
   });
 
   return errors;
