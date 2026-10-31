@@ -31,6 +31,7 @@ export interface ClaimedWebhookEvent {
 }
 
 function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
+  if (event.eventId) return `${event.provider}:${event.eventId}`;
   const digest = createHash("sha256")
     .update(JSON.stringify({
       provider: event.provider,
@@ -39,9 +40,7 @@ function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
       payload: event.payload,
     }))
     .digest("hex");
-  return event.eventId
-    ? `${event.provider}:${event.eventId}:${digest}`
-    : `${event.provider}:sha256:${digest}`;
+  return `${event.provider}:sha256:${digest}`;
 }
 
 /** Persist only encrypted payloads. Call after provider signature verification. */
