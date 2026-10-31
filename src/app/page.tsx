@@ -85,7 +85,7 @@ export default function HomePage() {
     setAuthenticated(false); setOverview(null); setMappings([]);
   }
 
-  async function connectWix(event: React.FormEvent<HTMLFormElement>) {
+  async function connectWix(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setNotice("");
     try {
       const response = await fetch("/api/connections/wix", {
