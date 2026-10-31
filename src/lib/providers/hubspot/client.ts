@@ -110,3 +110,41 @@ export async function findHubSpotContactByEmail(email: string): Promise<HubSpotC
   });
   return result.results[0] ?? null;
 }
+
+
+const FORM_ATTRIBUTION_PROPERTIES = [
+  { name: "utm_source", label: "UTM Source" },
+  { name: "utm_medium", label: "UTM Medium" },
+  { name: "utm_campaign", label: "UTM Campaign" },
+  { name: "utm_term", label: "UTM Term" },
+  { name: "utm_content", label: "UTM Content" },
+  { name: "landing_page_url", label: "Landing Page URL" },
+  { name: "lead_referrer", label: "Lead Referrer" },
+  { name: "form_submitted_at", label: "Form Submitted At" },
+] as const;
+
+/** Ensure the optional attribution properties exist before writing form leads. */
+export async function ensureHubSpotFormAttributionProperties(): Promise<void> {
+  for (const property of FORM_ATTRIBUTION_PROPERTIES) {
+    const response = await fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${await accessToken(await connection())}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: property.name,
+        label: property.label,
+        groupName: "contactinformation",
+        type: "string",
+        fieldType: "text",
+        formField: true,
+      }),
+      cache: "no-store",
+    });
+    // A 409 means the property already exists; all other failures are surfaced.
+    if (!response.ok && response.status !== 409) {
+      throw new Error(`Unable to ensure HubSpot property ${property.name}: ${response.status}`);
+    }
+  }
+}
