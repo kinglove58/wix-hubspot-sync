@@ -20,7 +20,7 @@ The live integrations are not considered verified until real Wix and HubSpot cre
 ## Architecture
 
 - **Next.js App Router / TypeScript** — dashboard, OAuth callbacks, provider APIs, webhook receivers, and worker endpoints.
-- **Supabase Postgres** — encrypted provider connections, field mappings, Wix↔HubSpot contact links, webhook queue, and audit records.
+- **Supabase Postgres** — encrypted provider connections, field mappings, Wix↔HubSpot contact links, encrypted webhook queue, and audit records. RLS is enabled and browser-facing table privileges are revoked; trusted server code uses the service-role key.
 - **HubSpot CRM API** — contacts and attribution properties.
 - **Wix Contacts API** — contact reads and writes for the installed app instance.
 - **Vitest** — unit tests for mapping and conflict logic.
@@ -33,7 +33,7 @@ This is a self-managed Wix app integration. Wix CLI is not required for the curr
 2. Clone this repository and run `npm install`.
 3. Copy `.env.example` to `.env.local`.
 4. Configure the environment variables below.
-5. Apply every SQL migration in `supabase/migrations` to the Supabase project. The connected Supabase project already has the initial schema, encrypted webhook payload support, and worker retry/lease migrations applied.
+5. Apply every SQL migration in `supabase/migrations` to your Supabase project. The linked project for this assignment already has all committed migrations applied, including the initial schema, encrypted webhook payloads, retry/lease handling, server-role-only table grants, and the mapping foreign-key index.
 6. Run `npm run dev` and open `http://localhost:3000`.
 
 Never commit `.env.local`, OAuth credentials, encryption keys, webhook public keys with secrets (public keys are not secrets but should still be configured carefully), provider tokens, or real customer data.
