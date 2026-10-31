@@ -11,6 +11,7 @@ type Mapping = {
   direction: "wix_to_hubspot" | "hubspot_to_wix" | "bidirectional";
   transform: "none" | "trim" | "lowercase" | "uppercase"; enabled: boolean;
 };
+type FieldOption = { value: string; label: string };
 type Overview = {
   connections: Connection[];
   mappings: Array<{ id: string; wix_field: string; hubspot_property: string; sync_direction: Mapping["direction"]; transform: Mapping["transform"]; enabled: boolean }>;
@@ -30,6 +31,8 @@ export default function HomePage() {
   const [instanceId, setInstanceId] = useState("");
   const [overview, setOverview] = useState<Overview | null>(null);
   const [mappings, setMappings] = useState<Mapping[]>([]);
+  const [wixFieldOptions, setWixFieldOptions] = useState<FieldOption[]>([]);
+  const [hubspotPropertyOptions, setHubspotPropertyOptions] = useState<FieldOption[]>([]);
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -43,6 +46,12 @@ export default function HomePage() {
       wixField: item.wix_field, hubspotProperty: item.hubspot_property,
       direction: item.sync_direction, transform: item.transform, enabled: item.enabled,
     })));
+    const fieldsResponse = await fetch("/api/fields", { cache: "no-store" });
+    if (fieldsResponse.ok) {
+      const fields = await fieldsResponse.json() as { wixFields: FieldOption[]; hubspotProperties: FieldOption[] };
+      setWixFieldOptions(fields.wixFields);
+      setHubspotPropertyOptions(fields.hubspotProperties);
+    }
   }, []);
 
   useEffect(() => {
@@ -150,6 +159,8 @@ export default function HomePage() {
         <button className="button-quiet" onClick={logout}>Sign out</button>
       </header>
       {notice && <div className="notice" role="status">{notice}</div>}
+      <datalist id="wix-field-options">{wixFieldOptions.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}</datalist>
+      <datalist id="hubspot-property-options">{hubspotPropertyOptions.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}</datalist>
 
       <section className="provider-grid">
         <article className="panel provider-card">
@@ -175,8 +186,8 @@ export default function HomePage() {
           {mappings.length === 0 && <p className="empty">No mappings configured yet. Add your first field mapping.</p>}
           {mappings.map((mapping, index) => (
             <div className="mapping-row" key={index}>
-              <div><label>Wix field</label><input value={mapping.wixField} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, wixField: e.target.value } : item))} placeholder="info.name.first" /></div>
-              <div><label>HubSpot property</label><input value={mapping.hubspotProperty} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, hubspotProperty: e.target.value } : item))} placeholder="firstname" /></div>
+              <div><label>Wix field</label><input list="wix-field-options" value={mapping.wixField} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, wixField: e.target.value } : item))} placeholder="Choose or type a Wix field" /></div>
+              <div><label>HubSpot property</label><input list="hubspot-property-options" value={mapping.hubspotProperty} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, hubspotProperty: e.target.value } : item))} placeholder="Choose or type a property" /></div>
               <div><label>Direction</label><select value={mapping.direction} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, direction: e.target.value as Mapping["direction"] } : item))}><option value="bidirectional">Both ways</option><option value="wix_to_hubspot">Wix → HubSpot</option><option value="hubspot_to_wix">HubSpot → Wix</option></select></div>
               <div><label>Transform</label><select value={mapping.transform} onChange={(e) => setMappings((items) => items.map((item, i) => i === index ? { ...item, transform: e.target.value as Mapping["transform"] } : item))}><option value="none">None</option><option value="trim">Trim</option><option value="lowercase">Lowercase</option><option value="uppercase">Uppercase</option></select></div>
               <button className="remove-button" onClick={() => setMappings((items) => items.filter((_, i) => i !== index))} aria-label="Remove mapping">×</button>
