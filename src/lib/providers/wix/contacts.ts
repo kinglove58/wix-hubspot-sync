@@ -33,6 +33,7 @@ async function wixRequest<T>(
       ...init.headers,
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
   });
   if (!response.ok) {
     throw new Error(`Wix API request failed with status ${response.status}`);
