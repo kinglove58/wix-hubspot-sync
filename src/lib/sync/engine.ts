@@ -54,14 +54,13 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   const mapped = mappings.length
     ? mapWixPayloadToHubSpot(wix as unknown as Record<string, unknown>, mappings)
     : {};
-  const properties = {
-    ...wixContactToHubSpotProperties(wix),
-    ...toHubSpotProperties(mapped),
-  };
-  if (!properties.email) {
-    await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, details: { reason: "email_required_for_matching" } });
-    return { status: "skipped" as const, reason: "email_required_for_matching" };
+  if (mappings.length && Object.keys(mapped).length === 0) {
+    await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, details: { reason: "no_enabled_mapping_for_direction" } });
+    return { status: "skipped" as const, reason: "no_enabled_mapping_for_direction" };
   }
+  const properties = mappings.length
+    ? toHubSpotProperties(mapped)
+    : wixContactToHubSpotProperties(wix);
 
   const { data: existingLink, error: linkError } = await db.from("contact_links")
     .select("hubspot_contact_id,wix_updated_at,hubspot_updated_at")
@@ -70,6 +69,10 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
     .eq("wix_contact_id", wixContactId)
     .maybeSingle();
   if (linkError) throw new Error("Unable to read contact link");
+  if (!properties.email && !existingLink?.hubspot_contact_id) {
+    await audit({ provider: "wix", action: "contact_sync", outcome: "skipped", wixContactId, details: { reason: "email_required_for_new_contact_match" } });
+    return { status: "skipped" as const, reason: "email_required_for_new_contact_match" };
+  }
 
   if (existingLink?.hubspot_updated_at && wix.updatedDate) {
     const decision = resolveConflict(
@@ -118,11 +121,6 @@ export async function syncHubSpotContactToWix(
 ) {
   const connections = await resolveProviderConnections(instanceId);
   const email = contact.properties?.email;
-  if (!email) {
-    await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", hubspotContactId, details: { reason: "email_required_for_matching" } });
-    return { status: "skipped" as const, reason: "email_required_for_matching" };
-  }
-
   const db = getSupabaseAdmin();
   const { data: link, error } = await db.from("contact_links")
     .select("wix_contact_id,wix_updated_at,hubspot_updated_at")
@@ -131,6 +129,10 @@ export async function syncHubSpotContactToWix(
     .eq("hubspot_contact_id", hubspotContactId)
     .maybeSingle();
   if (error) throw new Error("Unable to read contact link");
+  if (!email && !link?.wix_contact_id) {
+    await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", hubspotContactId, details: { reason: "email_required_for_new_contact_match" } });
+    return { status: "skipped" as const, reason: "email_required_for_new_contact_match" };
+  }
 
   if (link?.wix_updated_at && contact.updatedAt) {
     const decision = resolveConflict(
@@ -147,6 +149,10 @@ export async function syncHubSpotContactToWix(
   const mapped = mappings.length
     ? mapHubSpotPayloadToWix((contact.properties ?? {}) as Record<string, unknown>, mappings)
     : {};
+  if (mappings.length && Object.keys(mapped).length === 0) {
+    await audit({ provider: "hubspot", action: "contact_sync", outcome: "skipped", hubspotContactId, details: { reason: "no_enabled_mapping_for_direction" } });
+    return { status: "skipped" as const, reason: "no_enabled_mapping_for_direction" };
+  }
   const info = (mappings.length
     ? mapped
     : hubSpotContactToWixInfo(contact)) as NonNullable<WixContact["info"]>;
