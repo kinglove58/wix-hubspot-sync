@@ -125,11 +125,12 @@ const FORM_ATTRIBUTION_PROPERTIES = [
 
 /** Ensure the optional attribution properties exist before writing form leads. */
 export async function ensureHubSpotFormAttributionProperties(): Promise<void> {
+  const token = await accessToken(await connection());
   for (const property of FORM_ATTRIBUTION_PROPERTIES) {
     const response = await fetch("https://api.hubapi.com/crm/v3/properties/contacts", {
       method: "POST",
       headers: {
-        authorization: `Bearer ${await accessToken(await connection())}`,
+        authorization: `Bearer ${token}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({
