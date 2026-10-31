@@ -7,7 +7,7 @@ const serverEnvSchema = z.object({
   HUBSPOT_CLIENT_ID: z.string().optional(),
   HUBSPOT_CLIENT_SECRET: z.string().optional(),
   HUBSPOT_REDIRECT_URI: z.string().url().default("http://localhost:3000/api/oauth/hubspot/callback"),
-  HUBSPOT_SCOPES: z.string().default("crm.objects.contacts.read crm.objects.contacts.write crm.schemas.contacts.write"),
+  HUBSPOT_SCOPES: z.string().default("crm.objects.contacts.read crm.objects.contacts.write crm.schemas.contacts.read crm.schemas.contacts.write"),
   WIX_APP_ID: z.string().optional(),
   WIX_APP_SECRET: z.string().optional(),
   WIX_WEBHOOK_SECRET: z.string().optional(),
