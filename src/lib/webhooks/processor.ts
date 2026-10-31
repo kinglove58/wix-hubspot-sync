@@ -24,8 +24,9 @@ function readHubSpotObjectId(payload: Record<string, unknown>): string | null {
 
 function isWixFormSubmissionEvent(eventType: string): boolean {
   const normalized = eventType.toLowerCase();
-  return normalized.includes("submission") &&
-    (normalized.includes("created") || normalized.includes("submitted"));
+  return (normalized.includes("submission") &&
+    (normalized.includes("created") || normalized.includes("submitted"))) ||
+    normalized.includes("formsubmitted") || normalized.includes("form_submitted");
 }
 
 function isWixContactEvent(eventType: string): boolean {
