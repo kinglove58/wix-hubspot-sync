@@ -7,6 +7,7 @@ import {
   updateHubSpotContact,
 } from "@/lib/providers/hubspot/client";
 import { resolveProviderConnections } from "@/lib/sync/connection-repository";
+import { getWixContact } from "@/lib/providers/wix/contacts";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
 type UnknownRecord = Record<string, unknown>;
@@ -57,7 +58,7 @@ function textAt(objects: UnknownRecord[], keys: string[]): string | undefined {
 
 /** Convert a Wix Forms event into a deduplicated HubSpot contact with attribution. */
 export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventData: UnknownRecord) {
-  await resolveProviderConnections(instanceId);
+  const connections = await resolveProviderConnections(instanceId);
   const submission = record(eventData.submission ?? eventData.formSubmission);
   const context = record(eventData.submissionContext ?? eventData.context ?? submission.context);
   const fields = { ...flattenFields(eventData), ...flattenFields(submission) };
@@ -145,6 +146,29 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
     },
   });
   if (error) throw new Error("Unable to write form submission audit record");
+
+  const wixContactId = textAt([eventData, submission], ["contactId", "wixContactId"]);
+  if (wixContactId) {
+    const wixContact = await getWixContact(instanceId, wixContactId);
+    const { data: existingLink, error: linkReadError } = await getSupabaseAdmin()
+      .from("contact_links").select("hubspot_contact_id")
+      .eq("wix_connection_id", connections.wix.id)
+      .eq("wix_contact_id", wixContactId).maybeSingle();
+    if (linkReadError) throw new Error("Unable to inspect form contact link");
+    if (!existingLink || existingLink.hubspot_contact_id === saved.id) {
+      const { error: linkWriteError } = await getSupabaseAdmin().from("contact_links").upsert({
+        wix_connection_id: connections.wix.id,
+        hubspot_connection_id: connections.hubspot.id,
+        wix_contact_id: wixContactId,
+        hubspot_contact_id: saved.id,
+        last_synced_at: new Date().toISOString(),
+        last_source: "wix",
+        wix_updated_at: wixContact.updatedDate ?? null,
+        hubspot_updated_at: saved.updatedAt ?? null,
+      }, { onConflict: "wix_connection_id,wix_contact_id" });
+      if (linkWriteError) throw new Error("Unable to save form contact link");
+    }
+  }
 
   return { status: "succeeded" as const, hubspotContactId: saved.id };
 }
