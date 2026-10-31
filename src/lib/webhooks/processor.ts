@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getHubSpotContact } from "@/lib/providers/hubspot/client";
+import { getWixContact } from "@/lib/providers/wix/contacts";
 import { syncHubSpotContactToWix, syncWixContactToHubSpot } from "@/lib/sync/engine";
 import { syncWixFormSubmissionToHubSpot } from "@/lib/sync/form-submission";
 import { listEnabledMappings } from "@/lib/sync/mapping-repository";
@@ -37,9 +38,25 @@ function isWixContactEvent(eventType: string): boolean {
     normalized === "contact.updated";
 }
 
+/** Distinguish our own provider write from a later external edit. */
+function isSameSyncEcho(
+  currentUpdatedAt: string | null | undefined,
+  syncedUpdatedAt: string | null | undefined,
+  lastSyncedAt: string | null | undefined,
+): boolean {
+  if (currentUpdatedAt && syncedUpdatedAt) {
+    const current = Date.parse(currentUpdatedAt);
+    const synced = Date.parse(syncedUpdatedAt);
+    if (Number.isFinite(current) && Number.isFinite(synced)) return current <= synced + 2_000;
+  }
+  if (!lastSyncedAt) return false;
+  const lastSync = Date.parse(lastSyncedAt);
+  return Number.isFinite(lastSync) && Date.now() - lastSync < 30_000;
+}
+
 /**
- * Processes provider events from the durable queue. last_source suppresses
- * reciprocal events created by our own writes and prevents feedback loops.
+ * Processes provider events from the durable queue. Timestamp-aware echo
+ * suppression ignores our own reciprocal writes but permits later user edits.
  */
 export async function processWebhookEvent(eventId: string): Promise<ProcessResult> {
   const claimed = await claimPendingWebhookEvent(eventId);
@@ -93,14 +110,17 @@ export async function processWebhookEvent(eventId: string): Promise<ProcessResul
       }
 
       const { data: link, error: linkError } = await db.from("contact_links")
-        .select("last_source")
+        .select("last_source,wix_updated_at,last_synced_at")
         .eq("wix_connection_id", wixConnection.id)
         .eq("wix_contact_id", wixContactId)
         .maybeSingle();
       if (linkError) throw new Error("Unable to inspect Wix sync link");
       if (link?.last_source === "hubspot") {
-        await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
-        return "ignored";
+        const currentWix = await getWixContact(instanceId, wixContactId);
+        if (isSameSyncEcho(currentWix.updatedDate, link.wix_updated_at, link.last_synced_at)) {
+          await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
+          return "ignored";
+        }
       }
 
       await syncWixContactToHubSpot(instanceId, wixContactId);
@@ -130,20 +150,23 @@ export async function processWebhookEvent(eventId: string): Promise<ProcessResul
       }
 
       const { data: link, error: linkError } = await db.from("contact_links")
-        .select("last_source")
+        .select("last_source,hubspot_updated_at,last_synced_at")
         .eq("wix_connection_id", wixConnection.id)
         .eq("hubspot_contact_id", hubspotContactId)
         .maybeSingle();
       if (linkError) throw new Error("Unable to inspect HubSpot sync link");
-      if (link?.last_source === "wix") {
-        await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
-        return "ignored";
-      }
 
       const connections = await resolveProviderConnections(wixConnection.external_account_id as string);
       const mappings = await listEnabledMappings(wixConnection.id, connections.hubspot.id);
       const contact = await getHubSpotContact(hubspotContactId, mappings.map((mapping) => mapping.targetField));
       if (!contact.id) throw new Error("HubSpot contact response is incomplete");
+
+      if (link?.last_source === "wix" &&
+          isSameSyncEcho(contact.updatedAt, link.hubspot_updated_at, link.last_synced_at)) {
+        await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
+        return "ignored";
+      }
+
       await syncHubSpotContactToWix(wixConnection.external_account_id, hubspotContactId, contact);
       await finishWebhookEvent(eventId, "succeeded");
       return "succeeded";
