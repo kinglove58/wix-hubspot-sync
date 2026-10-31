@@ -1,6 +1,7 @@
 import "server-only";
 import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { getServerEnv, requireEnv } from "@/lib/env";
 
 export type Provider = "wix" | "hubspot";
 
@@ -41,6 +42,24 @@ export async function getProviderConnection(provider: Provider, externalAccountI
 }
 
 export async function disconnectProvider(provider: Provider, externalAccountId: string) {
+  const current = await getProviderConnection(provider, externalAccountId);
+  if (provider === "hubspot" && current?.refreshToken) {
+    const env = getServerEnv();
+    const body = new URLSearchParams({
+      client_id: requireEnv("HUBSPOT_CLIENT_ID", env.HUBSPOT_CLIENT_ID),
+      client_secret: requireEnv("HUBSPOT_CLIENT_SECRET", env.HUBSPOT_CLIENT_SECRET),
+      token: current.refreshToken,
+      token_type_hint: "refresh_token",
+    });
+    const response = await fetch("https://api.hubspot.com/oauth/2026-03/token/revoke", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body,
+      cache: "no-store",
+    });
+    if (!response.ok) throw new Error("HubSpot token revocation failed; local credentials were retained");
+  }
+
   const { error } = await getSupabaseAdmin().from("provider_connections").update({
     disconnected_at: new Date().toISOString(), encrypted_access_token: null, encrypted_refresh_token: null,
     updated_at: new Date().toISOString(),
