@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
   const secret = process.env.HUBSPOT_CLIENT_SECRET;
   if (!secret) return NextResponse.json({ error: "Webhook endpoint is not configured" }, { status: 503 });
 
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > 1_000_000) return NextResponse.json({ error: "Webhook payload too large" }, { status: 413 });
   const rawBody = await request.text();
+  if (rawBody.length > 1_000_000) return NextResponse.json({ error: "Webhook payload too large" }, { status: 413 });
   const valid = verifyHubSpotSignature({
     clientSecret: secret,
     method: request.method,
