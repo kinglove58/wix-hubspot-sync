@@ -99,6 +99,17 @@ export async function syncWixContactToHubSpot(instanceId: string, wixContactId: 
   }
   if (!hubspotContactId) throw new Error("HubSpot did not return a contact ID");
 
+  const { data: conflictingLink, error: conflictLinkError } = await db.from("contact_links")
+    .select("wix_contact_id")
+    .eq("hubspot_connection_id", connections.hubspot.id)
+    .eq("hubspot_contact_id", hubspotContactId)
+    .maybeSingle();
+  if (conflictLinkError) throw new Error("Unable to verify contact identity link");
+  if (conflictingLink && conflictingLink.wix_contact_id !== wixContactId) {
+    await audit({ provider: "wix", action: "contact_link_conflict", outcome: "skipped", wixContactId, hubspotContactId, details: { reason: "hubspot_contact_already_linked" } });
+    return { status: "skipped" as const, reason: "hubspot_contact_already_linked" };
+  }
+
   const { error: upsertError } = await db.from("contact_links").upsert({
     wix_connection_id: connections.wix.id,
     hubspot_connection_id: connections.hubspot.id,
@@ -173,6 +184,17 @@ export async function syncHubSpotContactToWix(
     }
   }
   if (!wix.id) throw new Error("Wix did not return a contact ID");
+
+  const { data: conflictingLink, error: conflictLinkError } = await db.from("contact_links")
+    .select("hubspot_contact_id")
+    .eq("wix_connection_id", connections.wix.id)
+    .eq("wix_contact_id", wix.id)
+    .maybeSingle();
+  if (conflictLinkError) throw new Error("Unable to verify contact identity link");
+  if (conflictingLink && conflictingLink.hubspot_contact_id !== hubspotContactId) {
+    await audit({ provider: "hubspot", action: "contact_link_conflict", outcome: "skipped", wixContactId: wix.id, hubspotContactId, details: { reason: "wix_contact_already_linked" } });
+    return { status: "skipped" as const, reason: "wix_contact_already_linked" };
+  }
 
   const { error: upsertError } = await db.from("contact_links").upsert({
     wix_connection_id: connections.wix.id,
