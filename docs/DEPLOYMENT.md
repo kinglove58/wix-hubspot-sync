@@ -8,6 +8,29 @@ contact has been changed. Use a dedicated Wix test site and HubSpot developer te
 portal for acceptance. The dashboard is a shared operator console; do not expose it
 as a customer self-service SaaS dashboard without user/tenant membership authorization.
 
+## Reference hosting target: Vercel Node.js Functions
+
+Use Vercel's native Next.js deployment with Node.js 22 and Fluid compute for staging.
+This preserves the existing App Router and server-only provider clients. Select the
+Next.js framework preset, install command `npm ci`, build command `npm run build`,
+and automatic output-directory detection. Do not use a static export or Edge runtime.
+The worker routes already export `maxDuration = 300`; verify that Fluid compute is
+enabled and the deployed function settings allow 300 seconds. The application shares
+a 240-second work budget within that request limit.
+
+Use a stable staging HTTPS domain and put the `.env.example` variables in that
+environment's secret settings. Set `APP_BASE_URL` and `HUBSPOT_REDIRECT_URI` to that
+exact domain. Provider webhook/callback URLs must be reachable through deployment
+protection; retain the application's own admin and worker authentication. After the
+reviewed staging migrations, invoke the protected dispatcher manually, verify the
+actual logs/queue, then configure the gated GitHub scheduler described below.
+No Vercel project, paid plan, deployment or production setting was changed here.
+
+Official deployment references:
+
+- [Next.js on Vercel](https://vercel.com/docs/frameworks/full-stack/nextjs)
+- [Vercel function duration and Fluid compute](https://vercel.com/docs/functions/configuring-functions/duration)
+
 ## Reproducible validation
 
 Use Node.js 22.12+ and the committed lockfile:

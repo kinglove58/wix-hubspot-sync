@@ -118,7 +118,9 @@ fully atomic cross-provider last-write-wins or an active production scheduler is
    creation/property changes for every mapped property. Set `HUBSPOT_CLIENT_ID`,
    `HUBSPOT_CLIENT_SECRET`, `HUBSPOT_REDIRECT_URI`, optional `HUBSPOT_SCOPES` securely.
    Connect each test portal using OAuth.
-4. **Host:** deploy to approved staging on a Node host supporting 300-second requests.
+4. **Host:** the reference target is Vercel's native Next.js deployment, Node 22 and
+   Fluid compute with 300-second workers; see `DEPLOYMENT.md` for exact project settings.
+   Deploy only to approved staging and verify the actual function duration.
    Set `APP_BASE_URL`, `DASHBOARD_PASSWORD`, `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`,
    `CRON_SECRET`, optional `ADMIN_API_KEY` and provider/DB variables securely. Use distinct
    strong values and preserve the signed public URL through the proxy.
