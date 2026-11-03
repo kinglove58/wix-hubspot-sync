@@ -29,7 +29,7 @@ export interface WixContact {
   revision?: number;
   info?: {
     name?: { first?: string; last?: string };
-    emails?: { items: Array<{ email?: string; primary?: boolean }> };
+    emails?: { items: Array<{ email?: string; primary?: boolean; tag?: string }> };
     phones?: { items: Array<{ phone?: string; primary?: boolean; tag?: string }> };
     addresses?: { items: Array<{ address?: { country?: string; subdivision?: string; city?: string; postalCode?: string; addressLine?: string; addressLine2?: string; streetAddress?: { name?: string; number?: string } } }> };
     company?: string;

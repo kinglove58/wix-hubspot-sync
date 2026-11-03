@@ -17,14 +17,14 @@ export function isSameSyncEcho(currentUpdatedAt: string | null | undefined, sync
 export function isLikelySyncEcho(input: {
   incomingProvider: SyncOrigin;
   lastWrittenBy: SyncOrigin | null;
-  lastSyncedAt: string | null;
+  lastWrittenTargetUpdatedAt: string | null;
   incomingUpdatedAt: string | null;
   toleranceMs?: number;
 }): boolean {
   if (!input.lastWrittenBy || input.lastWrittenBy === input.incomingProvider) return false;
-  if (!input.lastSyncedAt || !input.incomingUpdatedAt) return false;
+  if (!input.lastWrittenTargetUpdatedAt || !input.incomingUpdatedAt) return false;
 
-  const syncedAt = Date.parse(input.lastSyncedAt);
+  const syncedAt = Date.parse(input.lastWrittenTargetUpdatedAt);
   const updatedAt = Date.parse(input.incomingUpdatedAt);
   if (!Number.isFinite(syncedAt) || !Number.isFinite(updatedAt)) return false;
 

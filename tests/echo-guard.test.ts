@@ -5,8 +5,8 @@ describe("sync echo guard", () => {
   it("normalizes equivalent precision/time zones but never treats invalid dates as echoes", () => {
     expect(isSameSyncEcho("2026-11-03T11:00:00+01:00", "2026-11-03T10:00:00.000Z")).toBe(true);
     expect(isSameSyncEcho("invalid", "invalid")).toBe(false);
-    expect(isLikelySyncEcho({ incomingProvider: "wix", lastWrittenBy: "wix", lastSyncedAt: "2026-11-03T10:00:00Z", incomingUpdatedAt: "2026-11-03T10:00:00Z" })).toBe(false);
-    expect(isLikelySyncEcho({ incomingProvider: "wix", lastWrittenBy: null, lastSyncedAt: "invalid", incomingUpdatedAt: "invalid" })).toBe(false);
+    expect(isLikelySyncEcho({ incomingProvider: "wix", lastWrittenBy: "wix", lastWrittenTargetUpdatedAt: "2026-11-03T10:00:00Z", incomingUpdatedAt: "2026-11-03T10:00:00Z" })).toBe(false);
+    expect(isLikelySyncEcho({ incomingProvider: "wix", lastWrittenBy: null, lastWrittenTargetUpdatedAt: "invalid", incomingUpdatedAt: "invalid" })).toBe(false);
   });
   it("allows real edits immediately after a write and requires provider versions", () => {
     expect(isSameSyncEcho("2026-10-30T12:00:00.001Z", "2026-10-30T12:00:00.000Z")).toBe(false);
@@ -17,7 +17,7 @@ describe("sync echo guard", () => {
     expect(isLikelySyncEcho({
       incomingProvider: "hubspot",
       lastWrittenBy: "wix",
-      lastSyncedAt: "2026-10-30T12:00:00.000Z",
+      lastWrittenTargetUpdatedAt: "2026-10-30T12:00:00.000Z",
       incomingUpdatedAt: "2026-10-30T12:00:00.000Z",
     })).toBe(true);
   });
@@ -26,7 +26,7 @@ describe("sync echo guard", () => {
     expect(isLikelySyncEcho({
       incomingProvider: "hubspot",
       lastWrittenBy: "wix",
-      lastSyncedAt: "2026-10-30T12:00:00.000Z",
+      lastWrittenTargetUpdatedAt: "2026-10-30T12:00:00.000Z",
       incomingUpdatedAt: "2026-10-30T12:01:00.000Z",
     })).toBe(false);
   });
@@ -35,7 +35,7 @@ describe("sync echo guard", () => {
     expect(isLikelySyncEcho({
       incomingProvider: "hubspot",
       lastWrittenBy: "wix",
-      lastSyncedAt: null,
+      lastWrittenTargetUpdatedAt: null,
       incomingUpdatedAt: null,
     })).toBe(false);
   });

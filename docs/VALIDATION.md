@@ -9,7 +9,7 @@ Implementation commit: `43a8ddf`; test/CI commit: `8725875`.
 |---|---|---|
 | Typecheck | PASS | `npm.cmd run typecheck`, strict TypeScript |
 | Lint | PASS | `npm.cmd run lint`, no source warnings |
-| All Vitest tests | PASS | `npm.cmd run test:coverage`: 172 tests, 29 files, zero skipped |
+| All Vitest tests | PASS | `npm.cmd run test:coverage`: 180 tests, 32 files, zero skipped |
 | Unit tests | PASS | `npm.cmd run test:unit`: 52 tests, 9 files |
 | Integration tests | PASS | Included in full suite; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
 | Contract tests | PASS | `npm.cmd run test:contract`: 14 tests, 3 files |
@@ -28,8 +28,8 @@ Node 26.13.0; hosted CI targets Node 22. Generated reports are uploaded by CI.
 
 | Coverage scope | Statements | Branches | Lines |
 |---|---:|---:|---:|
-| All `src/lib` | 83.15% | 79.45% | 89.94% |
-| Synchronization directory | 85.55% | 81.07% | 91.78% |
+| All `src/lib` | 83.36% | 79.68% | 89.97% |
+| Synchronization directory | 85.93% | 81.48% | 91.83% |
 | Runtime engine | 90.51% | 80.64% | 93.80% |
 | Wix verifier | 100% | 100% | 100% |
 | HubSpot verifier | 100% | 100% | 100% |

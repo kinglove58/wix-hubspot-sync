@@ -1,11 +1,15 @@
 import type { WixContact } from "@/lib/providers/wix/contacts";
 import type { HubSpotContact } from "@/lib/providers/hubspot/client";
 
+function collectionItems<T>(value: { items: T[] } | T[] | undefined): T[] {
+  return Array.isArray(value) ? value : value?.items ?? [];
+}
+
 export function wixContactToHubSpotProperties(contact: WixContact): Record<string, string> {
-  const email = contact.info?.emails?.items.find((item) => item.primary)?.email ??
-    contact.info?.emails?.items[0]?.email;
-  const phone = contact.info?.phones?.items.find((item) => item.primary)?.phone ??
-    contact.info?.phones?.items[0]?.phone;
+  const emails = collectionItems(contact.info?.emails);
+  const phones = collectionItems(contact.info?.phones);
+  const email = emails.find((item) => item.primary)?.email ?? emails[0]?.email;
+  const phone = phones.find((item) => item.primary)?.phone ?? phones[0]?.phone;
   const properties: Record<string, string> = {};
   if (email) properties.email = email;
   if (contact.info?.name?.first) properties.firstname = contact.info.name.first;
@@ -13,7 +17,7 @@ export function wixContactToHubSpotProperties(contact: WixContact): Record<strin
   if (phone) properties.phone = phone;
   if (contact.info?.company) properties.company = contact.info.company;
   if (contact.info?.jobTitle) properties.jobtitle = contact.info.jobTitle;
-  const mobile = contact.info?.phones?.items.find((item) => item.tag === "MOBILE")?.phone;
+  const mobile = phones.find((item) => item.tag === "MOBILE")?.phone;
   if (mobile) properties.mobilephone = mobile;
   const address = contact.info?.addresses?.items[0]?.address;
   if (address?.addressLine) properties.address = address.addressLine;
