@@ -22,6 +22,8 @@ export default defineConfig({
         "src/lib/webhooks/*-signature.ts": { statements: 100, branches: 100, functions: 100, lines: 100, perFile: true },
         "src/lib/webhooks/retry-policy.ts": { statements: 100, branches: 100, functions: 100, lines: 100 },
         "src/lib/sync/engine.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
+        "src/lib/sync/form-submission.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
+        "src/lib/sync/**/*.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
       },
     },
   },

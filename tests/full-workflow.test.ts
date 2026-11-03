@@ -36,10 +36,10 @@ describe("signed webhook → PostgreSQL → worker → mocked provider workflows
   async function pair(wix: string, hubspot: string) {
     await pg.query("insert into public.integration_pairs(wix_connection_id,hubspot_connection_id) values ($1,$2)", [wix, hubspot]);
   }
-  async function wixEvent(site: string, id = "source", eventId = "event-1", type = "wix.contacts.v4.contact_created") {
+  async function wixEvent(site: string, id = "source", eventId = "event-1", type = "wix.contacts.v4.contact_created", extra: Record<string, unknown> = {}) {
     const now = Math.floor(Date.now() / 1000);
     const header = Buffer.from(JSON.stringify({ alg: "RS256" })).toString("base64url");
-    const payload = Buffer.from(JSON.stringify({ iat: now, exp: now + 300, data: { instanceId: site, eventType: type, data: JSON.stringify({ id: eventId, entityId: id }) } })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ iat: now, exp: now + 300, data: { instanceId: site, eventType: type, data: JSON.stringify({ id: eventId, entityId: id, ...extra }) } })).toString("base64url");
     const signer = createSign("RSA-SHA256"); signer.update(`${header}.${payload}`); signer.end();
     const response = await wixReceiver(new NextRequest("https://sync.example.invalid/api/webhooks/wix", { method: "POST", body: `${header}.${payload}.${signer.sign(privateKey).toString("base64url")}` }));
     expect(response.status).toBe(200);
@@ -130,6 +130,39 @@ describe("signed webhook → PostgreSQL → worker → mocked provider workflows
     expect(providers.writes.filter((write) => write.method === "POST")).toHaveLength(1);
     expect((await pg.query("select * from public.contact_links")).rows).toHaveLength(1);
     expect((await pg.query<{ attempts: number }>("select attempts from public.webhook_events where status='pending'")).rows.every((row) => row.attempts === 0)).toBe(true);
+  });
+
+  it("protects newer HubSpot edits from delayed forms and honors disabled pair mappings", async () => {
+    await pair(await connect("wix", "site-a"), await connect("hubspot", "100"));
+    providers.addHubSpot("100", "existing", "forms@example.invalid");
+    const submission = (createdDate: string) => ({ createdEvent: { entity: { id: "submission", createdDate, submissions: { email: "forms@example.invalid", firstName: "Form name" } } } });
+    await wixEvent("site-a", "submission", "old-form", "wix.forms.v4.submission_created", submission("2026-01-01T09:00:00Z"));
+    await processWebhookEvent(await newest());
+    expect(providers.writes).toHaveLength(0);
+    const createdDate = providers.now();
+    await wixEvent("site-a", "submission", "new-form", "wix.forms.v4.submission_created", submission(createdDate));
+    await processWebhookEvent(await newest());
+    expect(providers.writes).toHaveLength(1);
+    expect(providers.hubspot.get("100")!.get("existing")!.properties).toMatchObject({ firstname: "Form name", form_submitted_at: createdDate });
+    await pg.exec("update public.integration_pairs set use_default_mappings=false");
+    await wixEvent("site-a", "submission", "disabled-form", "wix.forms.v4.submission_created", submission(providers.now()));
+    await processWebhookEvent(await newest());
+    expect(providers.writes).toHaveLength(1);
+    const reasons = (await pg.query<{ safe_details: { reason?: string } }>("select safe_details from public.sync_audit_logs where outcome='skipped'")).rows.map((row) => row.safe_details.reason);
+    expect(reasons).toEqual(expect.arrayContaining(["hubspot_version_is_newer_or_submission_time_unavailable", "no_enabled_mapping_for_direction"]));
+  });
+
+  it("uses persisted partial custom mappings in both directions without losing defaults", async () => {
+    const wix = await connect("wix", "site-a"), hubspot = await connect("hubspot", "100");
+    await pair(wix, hubspot); providers.addWix("site-a");
+    await pg.query("select public.replace_field_mappings($1,$2,$3::jsonb)", [wix, hubspot, JSON.stringify([{ wixField: "info.name.first", hubspotProperty: "nickname", direction: "bidirectional", transform: "uppercase", enabled: true }])]);
+    await wixEvent("site-a"); await processWebhookEvent(await newest());
+    const contact = [...providers.hubspot.get("100")!.values()][0];
+    expect(contact.properties).toMatchObject({ email: "same@example.invalid", firstname: "Ada", nickname: "ADA" });
+    contact.properties!.nickname = "Grace"; contact.updatedAt = providers.now();
+    await hubspotEvent("100", contact.id!, "mapped-reverse"); await processWebhookEvent(await newest());
+    expect(providers.wix.get("site-a")!.get("source")!.info).toMatchObject({ name: { first: "GRACE" }, emails: { items: [{ email: "same@example.invalid" }] } });
+    expect((await pg.query("select * from public.contact_links")).rows).toHaveLength(1);
   });
 
   it("preserves history and blocks writes after uninstall", async () => {

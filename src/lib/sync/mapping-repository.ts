@@ -1,6 +1,6 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import { validateMappings, type FieldMapping } from "@/lib/sync/mapping";
+import type { FieldMapping } from "@/lib/sync/mapping";
 
 export interface StoredFieldMapping extends FieldMapping {
   id: string;
@@ -28,53 +28,4 @@ export async function listEnabledMappings(
     enabled: Boolean(row.enabled),
     allowEmpty: row.allow_empty === true,
   }));
-}
-
-export async function saveFieldMapping(input: {
-  wixConnectionId: string;
-  hubspotConnectionId: string;
-  wixField: string;
-  hubspotProperty: string;
-  direction: "wix_to_hubspot" | "hubspot_to_wix" | "bidirectional";
-  transform?: "none" | "trim" | "lowercase" | "uppercase";
-}): Promise<void> {
-  const candidate: FieldMapping = {
-    sourceField: input.wixField,
-    targetField: input.hubspotProperty,
-    direction: input.direction === "bidirectional" ? "both" : input.direction,
-    transform: input.transform ?? "none",
-  };
-  const errors = validateMappings([candidate]);
-  if (errors.length) throw new Error(errors.join("; "));
-
-  const { data: wixConnection, error: wixError } = await getSupabaseAdmin()
-    .from("provider_connections")
-    .select("id")
-    .eq("id", input.wixConnectionId)
-    .eq("provider", "wix")
-    .is("disconnected_at", null)
-    .maybeSingle();
-  const { data: hubspotConnection, error: hubspotError } = await getSupabaseAdmin()
-    .from("provider_connections")
-    .select("id")
-    .eq("id", input.hubspotConnectionId)
-    .eq("provider", "hubspot")
-    .is("disconnected_at", null)
-    .maybeSingle();
-
-  if (wixError || hubspotError || !wixConnection || !hubspotConnection) {
-    throw new Error("Active Wix and HubSpot connections are required");
-  }
-
-  const { error } = await getSupabaseAdmin().from("field_mappings").upsert({
-    wix_connection_id: input.wixConnectionId,
-    hubspot_connection_id: input.hubspotConnectionId,
-    wix_field: input.wixField.trim(),
-    hubspot_property: input.hubspotProperty.trim(),
-    sync_direction: input.direction,
-    transform: input.transform ?? "none",
-    enabled: true,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: "wix_connection_id,hubspot_connection_id,wix_field,hubspot_property" });
-  if (error) throw new Error("Unable to save field mapping");
 }

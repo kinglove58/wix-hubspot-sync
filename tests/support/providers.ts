@@ -7,6 +7,7 @@ export class ProviderFixture {
   hubspot = new Map<string, Map<string, HubSpotContact>>();
   writes: Array<{ provider: string; account: string; method: string; id: string }> = [];
   failNextStatus: number | null = null;
+  private propertyNames = new Map<string, Set<string>>();
   private tick = 0;
   now() { return new Date(Date.UTC(2026, 0, 1, 10, 0, this.tick++)).toISOString(); }
   addWix(site: string, id = "source", email = "same@example.invalid") {
@@ -30,7 +31,12 @@ export class ProviderFixture {
     if (url.hostname === "api.hubapi.com") {
       const contacts = this.hubspot.get(account) ?? new Map<string, HubSpotContact>();
       this.hubspot.set(account, contacts);
-      if (url.pathname.startsWith("/crm/properties/")) return Response.json({ results: ["email", "firstname", "lastname", "phone", "mobilephone", "company", "jobtitle", "website", "address", "city", "state", "zip", "country", "nickname"].map((name) => ({ name, label: name, type: "string" })) });
+      if (url.pathname.startsWith("/crm/properties/")) {
+        const names = this.propertyNames.get(account) ?? new Set(["email", "firstname", "lastname", "phone", "mobilephone", "company", "jobtitle", "website", "address", "city", "state", "zip", "country", "nickname"]);
+        this.propertyNames.set(account, names);
+        if (method === "POST") { names.add(String(body.name)); return Response.json(body); }
+        return Response.json({ results: [...names].map((name) => ({ name, label: name, type: "string" })) });
+      }
       if (url.pathname.endsWith("/search")) {
         const groups = body.filterGroups as Array<{ filters: Array<{ value: string }> }>;
         return Response.json({ results: [...contacts.values()].filter((contact) => contact.properties?.email === groups[0].filters[0].value) });
