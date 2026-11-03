@@ -44,4 +44,14 @@ describe("OAuth token encryption", () => {
     process.env.TOKEN_ENCRYPTION_KEY = "too-short";
     expect(() => encryptToken("secret")).toThrow(/exactly 32 bytes/);
   });
+  it("rejects noncanonical keys and malformed authenticated envelopes", () => {
+    process.env.TOKEN_ENCRYPTION_KEY = "A".repeat(42) + "B=";
+    expect(() => encryptToken("token")).toThrow(/canonical/);
+    process.env.TOKEN_ENCRYPTION_KEY = "a".repeat(64);
+    expect(() => encryptToken("")).toThrow(/empty/);
+    const encrypted = encryptToken("token");
+    for (const envelope of ["", "v2.a.b.c", "v1..b.c", "v1.a..c", "v1.a.b", encrypted + ".extra", "v1.a.b.c"]) {
+      expect(() => decryptToken(envelope)).toThrow();
+    }
+  });
 });

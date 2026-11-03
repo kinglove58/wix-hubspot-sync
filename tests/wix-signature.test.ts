@@ -17,6 +17,26 @@ describe("Wix webhook JWT verification", () => {
   const publicKey = keys.publicKey.export({ type: "spki", format: "pem" }).toString();
   const privateKey = keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString();
 
+  it("rejects malformed JWTs, unsupported algorithms and invalid keys", () => {
+    const jwt = signedEvent(privateKey, { exp: 1800000300, data: {} });
+    for (const value of ["invalid", "a.b.c", "!.b.c", jwt.replace(jwt.split(".")[0], Buffer.from('{"alg":"HS256"}').toString("base64url"))]) {
+      expect(() => verifyAndDecodeWixWebhook(value, publicKey, 1800000000)).toThrow();
+    }
+    expect(() => verifyAndDecodeWixWebhook(jwt, "", 1800000000)).toThrow();
+    expect(() => verifyAndDecodeWixWebhook(jwt, "invalid-key", 1800000000)).toThrow();
+  });
+
+  it("validates nested envelopes and supports event IDs on the outer event", () => {
+    const now = 1800000000;
+    for (const data of [undefined, null, [], "null", "{", {}, { instanceId: "site" }, { instanceId: "site", eventType: "AppInstalled", data: "[]" }]) {
+      expect(() => verifyAndDecodeWixWebhook(signedEvent(privateKey, { exp: now + 300, data }), publicKey, now)).toThrow();
+    }
+    const event = verifyAndDecodeWixWebhook(signedEvent(privateKey, { exp: now + 300, data: { instanceId: "site", eventType: "AppInstalled", eventId: "outer", data: {} } }), publicKey, now);
+    expect(event.eventId).toBe("outer");
+    expect(event.issuedAt).toBeUndefined();
+    expect(verifyAndDecodeWixWebhook(signedEvent(privateKey, { exp: now + 300, data: { instanceId: "site", eventType: "AppInstalled" } }), publicKey, now).eventId).toBeUndefined();
+  });
+
   it("verifies Wix's signed body and decodes the contact event", () => {
     const now = 1_800_000_000;
     const jwt = signedEvent(privateKey, {
@@ -41,6 +61,23 @@ describe("Wix webhook JWT verification", () => {
       data: JSON.stringify({ instanceId: "instance-123456", eventType: "wix.contacts.v4.contact_created", data: "{}" }),
     });
     expect(() => verifyAndDecodeWixWebhook(expired, publicKey, 1_800_000_000)).toThrow(/Expired/);
-    expect(() => verifyAndDecodeWixWebhook(`${expired.slice(0, -1)}x`, publicKey, 1_700_000_050)).toThrow();
+    const parts = expired.split(".");
+    const signature = Buffer.from(parts[2], "base64url");
+    signature[0] ^= 1;
+    parts[2] = signature.toString("base64url");
+    expect(() => verifyAndDecodeWixWebhook(parts.join("."), publicKey, 1_700_000_050)).toThrow();
+  });
+
+  it.each(["tomorrow", null, {}, []])("rejects a nonnumeric expiry claim: %j", (exp) => {
+    const jwt = signedEvent(privateKey, { exp, data: { instanceId: "site", eventType: "AppInstalled", data: "{}" } });
+    expect(() => verifyAndDecodeWixWebhook(jwt, publicKey)).toThrow();
+  });
+
+  it("rejects invalid issued-at claims", () => {
+    const now = 1_800_000_000;
+    for (const iat of ["now", now + 120, now + 400]) {
+      const jwt = signedEvent(privateKey, { iat, exp: now + 300, data: { instanceId: "site", eventType: "AppInstalled", data: "{}" } });
+      expect(() => verifyAndDecodeWixWebhook(jwt, publicKey, now)).toThrow();
+    }
   });
 });

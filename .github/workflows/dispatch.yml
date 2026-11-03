@@ -1,0 +1,32 @@
+name: Dispatch synchronization queue
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: synchronization-dispatch
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    if: vars.ENABLE_SYNC_DISPATCH == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Call protected worker
+        env:
+          SYNC_BASE_URL: ${{ vars.SYNC_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        shell: bash
+        run: |
+          test -n "$CRON_SECRET"
+          case "$SYNC_BASE_URL" in https://*) ;; *) echo 'SYNC_BASE_URL must use HTTPS'; exit 1 ;; esac
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          status="$(curl --silent --show-error --max-time 290 --output "$response_file" --write-out '%{http_code}' --request POST --header "Authorization: Bearer $CRON_SECRET" "${SYNC_BASE_URL%/}/api/worker/dispatch")"
+          test "$status" = 200 || { echo "Dispatch needs investigation (HTTP $status)"; exit 1; }

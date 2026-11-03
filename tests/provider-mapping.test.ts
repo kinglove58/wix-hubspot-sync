@@ -11,16 +11,28 @@ const configured: StoredFieldMapping[] = [
 describe("provider mapping adapters", () => {
   it("maps Wix nested contact fields into HubSpot properties only when allowed", () => {
     expect(mapWixPayloadToHubSpot({
-      info: { name: { first: " Ada ", last: "Lovelace" }, emails: [{ email: "ADA@EXAMPLE.COM" }] },
+      info: { name: { first: " Ada ", last: "Lovelace" }, emails: { items: [{ email: "ADA@EXAMPLE.COM" }] } },
     }, configured)).toEqual({ firstname: "Ada", email: "ada@example.com" });
   });
 
   it("reverses bidirectional and HubSpot-to-Wix mappings", () => {
     expect(mapHubSpotPayloadToWix({ firstname: " Ada ", lastname: " Lovelace ", email: "ada@example.com" }, configured))
-      .toEqual({ info: { name: { first: "Ada", last: "Lovelace" } } });
+      .toEqual({ name: { first: "Ada", last: "Lovelace" } });
   });
 
   it("does not apply Wix-to-HubSpot-only mappings in the reverse direction", () => {
     expect(mapHubSpotPayloadToWix({ email: "ada@example.com" }, configured)).toEqual({});
+  });
+
+  it("wraps legacy saved collection paths in the REST items envelope", () => {
+    const mappings: StoredFieldMapping[] = [{ ...configured[1], direction: "both" }];
+    expect(mapHubSpotPayloadToWix({ email: "ADA@EXAMPLE.COM" }, mappings))
+      .toEqual({ emails: { items: [{ email: "ada@example.com" }] } });
+  });
+
+  it("never applies disabled mappings", () => {
+    const mappings = configured.map((mapping) => ({ ...mapping, enabled: false }));
+    expect(mapHubSpotPayloadToWix({ firstname: "Ada" }, mappings)).toEqual({});
+    expect(mapWixPayloadToHubSpot({ info: { name: { first: "Ada" } } }, mappings)).toEqual({});
   });
 });

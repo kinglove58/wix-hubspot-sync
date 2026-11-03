@@ -1,9 +1,17 @@
 name: CI
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   push:
     branches:
       - main
+      - fix/webhook-retries
   pull_request:
     branches:
       - main
@@ -19,12 +27,31 @@ jobs:
         with:
           node-version: 22
       - name: Install dependencies
-        run: npm install
+        run: npm ci
       - name: Typecheck
         run: npm run typecheck
-      - name: Run unit tests
-        run: npm test
+      - name: Unit, database integration, contract and security tests with coverage
+        run: npm run test:coverage
       - name: Lint
         run: npm run lint
       - name: Build
         run: npm run build
+      - name: Production HTTP smoke checks
+        run: npm run test:smoke
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser acceptance tests (synthetic providers)
+        run: npm run test:e2e
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: validation-reports
+          path: |
+            coverage/
+            reports/
+            playwright-report/
+            test-results/
+          retention-days: 14

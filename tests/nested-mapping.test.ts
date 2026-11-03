@@ -3,6 +3,13 @@ import { applyNestedMappings } from "../src/lib/sync/nested-mapping";
 import type { FieldMapping } from "../src/lib/sync/mapping";
 
 describe("nested field mapping", () => {
+  it("treats Wix extended field keys as dictionary keys in both directions", () => {
+    const mapping: FieldMapping = { sourceField: "info.extendedFields.items.custom.website", targetField: "website", direction: "both", transform: "trim" };
+    expect(applyNestedMappings({ info: { extendedFields: { items: { "custom.website": " https://example.invalid " } } } }, [mapping], "wix_to_hubspot"))
+      .toEqual({ website: "https://example.invalid" });
+    expect(applyNestedMappings({ website: "https://example.invalid" }, [{ ...mapping, sourceField: "website", targetField: mapping.sourceField }], "hubspot_to_wix"))
+      .toEqual({ info: { extendedFields: { items: { "custom.website": "https://example.invalid" } } } });
+  });
   it("reads nested source values and writes nested target values", () => {
     const result = applyNestedMappings(
       { info: { name: { first: " Ada " } } },

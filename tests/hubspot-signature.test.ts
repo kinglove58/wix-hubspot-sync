@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 import { verifyHubSpotSignature } from "../src/lib/webhooks/hubspot-signature";
 
 describe("HubSpot v3 webhook signature", () => {
+  it("rejects missing headers, invalid times, malformed URLs and wrong signature lengths", () => {
+    const input = { clientSecret: "secret", method: "POST", requestUrl: "https://example.invalid/hook", rawBody: "[]", signature: "bad", timestamp: "1800000000000", now: 1800000000000 };
+    for (const change of [{ signature: null }, { timestamp: null }, { clientSecret: "" }, { timestamp: "NaN" }, { timestamp: "1800000360000" }, { requestUrl: "invalid" }, {}]) {
+      expect(verifyHubSpotSignature({ ...input, ...change })).toBe(false);
+    }
+  });
   it("verifies the raw body and HubSpot-normalized request URI", () => {
     const now = 1_800_000_000_000;
     const timestamp = String(now);
