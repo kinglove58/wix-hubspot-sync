@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 const mocks = vi.hoisted(() => ({ admin: vi.fn() }));
 vi.mock("../src/lib/supabase/admin", () => ({ getSupabaseAdmin: mocks.admin }));
 import { finishWebhookEvent, stableIdempotencyKey, type VerifiedWebhookEvent } from "../src/lib/webhooks/event-store";
@@ -9,6 +10,12 @@ const event: VerifiedWebhookEvent = {
 };
 
 describe("event identity", () => {
+  it("uses locale-independent fallback identity for mixed-case and Unicode keys", () => {
+    const input = { ...event, eventId: undefined, payload: { portalId: 100, nested: { "ä": 1, a: 2, Z: 3 } } };
+    const canonical = { provider: "hubspot", eventType: input.eventType, correlationId: "1", payload: { nested: { Z: 3, a: 2, "ä": 1 }, portalId: 100 } };
+    const expected = createHash("sha256").update(JSON.stringify(canonical)).digest("hex");
+    expect(stableIdempotencyKey(input)).toBe(`hubspot:100:sha256:${expected}`);
+  });
   it("canonicalizes fallback identity across key order and delivery attempts", () => {
     const first = { ...event, eventId: undefined, payload: { portalId: 100, attemptNumber: 0, nested: { b: 2, a: 1 } } };
     const retry = { ...first, payload: { nested: { a: 1, b: 2 }, attemptNumber: 4, portalId: 100 } };

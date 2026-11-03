@@ -18,7 +18,7 @@ the unused nontransactional single-row mapping writer.
 ## Validation
 
 - Strict typecheck and ESLint pass.
-- 233 Vitest tests across 32 files pass, including SQL-backed signed webhook workflows
+- 234 Vitest tests across 32 files pass, including SQL-backed signed webhook workflows
   and OAuth lifecycle tests with synthetic provider HTTP.
 - Both signature verifiers and retry policy have 100% statement/branch coverage gates.
 - Overall measured coverage: 91.85% statements / 88.48% branches. Synchronization is

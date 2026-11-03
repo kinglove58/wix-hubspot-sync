@@ -52,7 +52,7 @@ HubSpot's final-read/PATCH sequence cannot prevent an external edit racing the P
 ## E. Testing
 
 See `VALIDATION.md` for the required command/result table and measured coverage.
-233 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
+234 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
 and seven HTTP smoke checks pass. Provider HTTP is synthetic; SQL uses PGlite.
 Overall coverage: 91.85% statements / 88.48% branches; runtime engine: 100% / 93.54%.
 Synchronization measures 95.67% statements / 91.94% branches and security measures

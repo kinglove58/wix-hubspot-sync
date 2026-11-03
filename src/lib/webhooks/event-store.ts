@@ -59,9 +59,11 @@ export function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
 function canonicalPayload(value: unknown, provider: Provider, root = true): unknown {
   if (Array.isArray(value)) return value.map((item) => canonicalPayload(item, provider, false));
   if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
-    .filter(([key]) => !(root && provider === "hubspot" && key === "attemptNumber"))
-    .map(([key, item]) => [key, canonicalPayload(item, provider, false)]));
+  const object = value as Record<string, unknown>;
+  // Default string sorting uses UTF-16 order, independent of host locale/ICU.
+  return Object.fromEntries(Object.keys(object).sort()
+    .filter((key) => !(root && provider === "hubspot" && key === "attemptNumber"))
+    .map((key) => [key, canonicalPayload(object[key], provider, false)]));
 }
 
 /** Persist only encrypted payloads. Call after provider signature verification. */

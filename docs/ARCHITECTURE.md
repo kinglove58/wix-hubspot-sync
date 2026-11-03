@@ -82,7 +82,9 @@ replacement API; the unused single-row repository writer was removed.
 ## Queue lifecycle and limits
 
 Verify before persistence; acknowledge only after durable encrypted insertion.
-Canonical idempotency keys include provider/account identity. Claims are atomic SQL
+Canonical idempotency keys include provider/account identity. Fallback payload keys
+use locale-independent UTF-16 ordering so Windows and Linux compute the same identity.
+Claims are atomic SQL
 operations; completion checks independent monotonically increasing lease versions.
 Five attempts, bounded backoff, Retry-After and permanent-error terminalization prevent
 infinite retries. Expired processing leases are reclaimed or finalized when exhausted.

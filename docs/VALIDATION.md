@@ -10,9 +10,9 @@ Forms conflict/mapping and audit follow-up: `ec91f93`.
 |---|---|---|
 | Typecheck | PASS | `npm.cmd run typecheck`, strict TypeScript |
 | Lint | PASS | `npm.cmd run lint`, no source warnings |
-| All Vitest tests | PASS | `npm.cmd run test:coverage`: 233 tests, 32 files, zero skipped |
+| All Vitest tests | PASS | `npm.cmd run test:coverage`: 234 tests, 32 files, zero skipped |
 | Unit tests | PASS | `npm.cmd run test:unit`: 58 tests, 11 files |
-| Integration tests | PASS | `npm.cmd run test:integration`: 113 tests, 9 files; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
+| Integration tests | PASS | `npm.cmd run test:integration`: 114 tests, 9 files; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
 | Contract tests | PASS | `npm.cmd run test:contract`: 14 tests, 3 files |
 | Security tests | PASS | `npm.cmd run test:security`: 58 tests, 10 files |
 | E2E browser tests | PASS | `npm.cmd run test:e2e`: 6 Chromium tests with synthetic API/provider responses |
