@@ -46,4 +46,8 @@ describe("integration lease ownership and deadlines", () => {
       await expect(withIntegrationLease("second", () => assertIntegrationLease())).rejects.toThrow(/lease/);
     });
   });
+  it("reports lease-release storage failures after work instead of returning a false success", async () => {
+    m.admin.mockReturnValue({ rpc, from: () => ({ delete: () => ({ eq: () => ({ eq: async () => ({ error: new Error("database unavailable") }) }) }) }) });
+    await expect(withIntegrationLease("site", async () => "completed")).rejects.toThrow(/release integration lease/);
+  });
 });

@@ -107,6 +107,31 @@ describe("signed webhook → PostgreSQL → worker → mocked provider workflows
     expect(await processWebhookEvent(await newest())).toBe("ignored");
   });
 
+  it("fans out a shared portal only to its two explicitly paired sites", async () => {
+    const a = await connect("wix", "site-a"), b = await connect("wix", "site-b");
+    await connect("wix", "unrelated-site");
+    const portal = await connect("hubspot", "100");
+    await pair(a, portal); await pair(b, portal);
+    providers.addHubSpot("100");
+    await hubspotEvent("100", "source");
+    expect(await processWebhookEvent(await newest())).toBe("succeeded");
+    expect(providers.writes.map((write) => write.account).sort()).toEqual(["site-a", "site-b"]);
+    expect(providers.wix.has("unrelated-site")).toBe(false);
+    expect((await pg.query("select * from public.contact_links")).rows).toHaveLength(2);
+  });
+
+  it("concurrent deliveries for one contact create only one destination identity", async () => {
+    await pair(await connect("wix", "site-a"), await connect("hubspot", "100")); providers.addWix("site-a");
+    await wixEvent("site-a", "source", "concurrent-a");
+    await wixEvent("site-a", "source", "concurrent-b");
+    const events = (await pg.query<{ id: string }>("select id from public.webhook_events")).rows;
+    const results = await Promise.all(events.map((event) => processWebhookEvent(event.id)));
+    expect(results).toContain("succeeded");
+    expect(providers.writes.filter((write) => write.method === "POST")).toHaveLength(1);
+    expect((await pg.query("select * from public.contact_links")).rows).toHaveLength(1);
+    expect((await pg.query<{ attempts: number }>("select attempts from public.webhook_events where status='pending'")).rows.every((row) => row.attempts === 0)).toBe(true);
+  });
+
   it("preserves history and blocks writes after uninstall", async () => {
     await pair(await connect("wix", "site-a"), await connect("hubspot", "100")); providers.addWix("site-a");
     await wixEvent("site-a"); await processWebhookEvent(await newest());

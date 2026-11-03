@@ -9,11 +9,11 @@ Implementation commit: `43a8ddf`; test/CI commit: `8725875`.
 |---|---|---|
 | Typecheck | PASS | `npm.cmd run typecheck`, strict TypeScript |
 | Lint | PASS | `npm.cmd run lint`, no source warnings |
-| All Vitest tests | PASS | `npm.cmd run test:coverage`: 180 tests, 32 files, zero skipped |
-| Unit tests | PASS | `npm.cmd run test:unit`: 52 tests, 9 files |
-| Integration tests | PASS | Included in full suite; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
+| All Vitest tests | PASS | `npm.cmd run test:coverage`: 207 tests, 32 files, zero skipped |
+| Unit tests | PASS | `npm.cmd run test:unit`: 58 tests, 11 files |
+| Integration tests | PASS | `npm.cmd run test:integration`; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
 | Contract tests | PASS | `npm.cmd run test:contract`: 14 tests, 3 files |
-| Security tests | PASS | `npm.cmd run test:security`: 43 tests, 9 files |
+| Security tests | PASS | `npm.cmd run test:security`: 58 tests, 10 files |
 | E2E browser tests | PASS | `npm.cmd run test:e2e`: 6 Chromium tests with synthetic API/provider responses |
 | Production build | PASS | `npm.cmd run build`: Next.js 15.5.28, all 19 pages/routes generated |
 | Production HTTP smoke | PASS | `npm.cmd run test:smoke`: 7 checks, temporary localhost server stopped |
@@ -28,9 +28,9 @@ Node 26.13.0; hosted CI targets Node 22. Generated reports are uploaded by CI.
 
 | Coverage scope | Statements | Branches | Lines |
 |---|---:|---:|---:|
-| All `src/lib` | 83.36% | 79.68% | 89.97% |
-| Synchronization directory | 85.93% | 81.48% | 91.83% |
-| Runtime engine | 90.51% | 80.64% | 93.80% |
+| All `src/lib` | 86.83% | 83.30% | 92.76% |
+| Synchronization directory | 88.15% | 84.29% | 93.26% |
+| Runtime engine | 100% | 93.54% | 100% |
 | Wix verifier | 100% | 100% | 100% |
 | HubSpot verifier | 100% | 100% | 100% |
 | Retry policy | 100% | 100% | 100% |
@@ -49,3 +49,8 @@ Verification levels:
 PGlite does not prove deployed Supabase/PostgREST or multi-process behavior. Browser
 mocks do not prove provider consent or writes. The deployment and security documents
 track the remaining release gates. Remote CI results must be verified independently.
+
+Hosted Node 22 CI passed for merge commit `c70a837`:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41692202068
+This run includes installation, typecheck, coverage, lint, build, smoke, Chromium,
+production audit and report upload. Later commits require their own check results.

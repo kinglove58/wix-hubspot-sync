@@ -49,9 +49,9 @@ HubSpot's final-read/PATCH sequence cannot prevent an external edit racing the P
 ## E. Testing
 
 See `VALIDATION.md` for the required command/result table and measured coverage.
-180 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
+207 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
 and seven HTTP smoke checks pass. Provider HTTP is synthetic; SQL uses PGlite.
-Overall coverage: 83.36% statements / 79.68% branches; runtime engine: 90.51% / 80.64%.
+Overall coverage: 86.83% statements / 83.30% branches; runtime engine: 100% / 93.54%.
 The broader 90% branch target is still open; live provider and production checks are unverified.
 
 ## F. Database
@@ -69,7 +69,11 @@ or invent ownership to pass a constraint. See the deployment ledger/RLS queries.
 
 Branch `fix/webhook-retries`; main unchanged. PR #1 verified open and unmerged.
 Implementation `43a8ddf`, tests/CI `8725875`; documentation follows separately.
-Remote CI must be read after pushing; local green tests do not prove hosted success.
+The divergent development history was merged as `c70a837` without force-pushing;
+its three regression test files were retained and adapted to the current contracts.
+Hosted Node 22 CI passed for that merge:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41692202068
+Subsequent commits add tests/documentation; inspect their own hosted checks before merge.
 No PR merge or production deployment was performed or authorized.
 
 ## H. Outstanding work

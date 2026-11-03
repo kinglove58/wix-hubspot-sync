@@ -7,6 +7,7 @@ import { createOAuthState, storeOAuthState, consumeOAuthState, safeCompareState,
 import { hubspotRequest } from "../src/lib/providers/hubspot/client";
 import { decryptToken, encryptToken } from "../src/lib/security/token-crypto";
 import { saveProviderConnection, getProviderConnection, disconnectProvider } from "../src/lib/providers/connections";
+import { getWixAccessToken, requestWixInstanceToken } from "../src/lib/providers/wix/client";
 
 describe("OAuth lifecycle against PostgreSQL with synthetic provider responses", () => {
   let pg: PGlite;
@@ -127,5 +128,45 @@ describe("OAuth lifecycle against PostgreSQL with synthetic provider responses",
     expect(await getProviderConnection("hubspot", "100")).not.toBeNull();
     expect(await getProviderConnection("hubspot", "200")).toBeNull();
     expect(fetcher.mock.calls[0][0]).toBe("https://api.hubapi.com/oauth/2026-03/token/revoke");
+  });
+
+  it("generates and caches only the requested Wix installation token", async () => {
+    vi.stubEnv("WIX_APP_ID", "synthetic-app"); vi.stubEnv("WIX_APP_SECRET", "synthetic-secret");
+    await saveProviderConnection({ provider: "wix", externalAccountId: "site-a", accessToken: "expired", expiresIn: -60 });
+    await saveProviderConnection({ provider: "wix", externalAccountId: "site-b", accessToken: "other-site", expiresIn: 3600 });
+    const fetcher = vi.fn().mockImplementation(async () => Response.json({ access_token: "renewed-site-a", expires_in: 1800 }));
+    vi.stubGlobal("fetch", fetcher);
+    expect((await getWixAccessToken("site-a")).access_token).toBe("renewed-site-a");
+    expect(fetcher.mock.calls[0][0]).toBe("https://www.wixapis.com/oauth2/token");
+    expect(JSON.parse(fetcher.mock.calls[0][1].body)).toEqual({ grant_type: "client_credentials", client_id: "synthetic-app", client_secret: "synthetic-secret", instance_id: "site-a" });
+    expect((await getWixAccessToken("site-a")).access_token).toBe("renewed-site-a");
+    expect((await getWixAccessToken("site-b")).access_token).toBe("other-site");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect((await getProviderConnection("wix", "site-a"))?.accessToken).toBe("renewed-site-a");
+  });
+
+  it("cannot revive a Wix installation disconnected during token generation", async () => {
+    vi.stubEnv("WIX_APP_ID", "synthetic-app"); vi.stubEnv("WIX_APP_SECRET", "synthetic-secret");
+    await saveProviderConnection({ provider: "wix", externalAccountId: "site-a", accessToken: "expired", expiresIn: -60 });
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      await pg.exec("update public.provider_connections set disconnected_at=now(),encrypted_access_token=null where provider='wix'");
+      return Response.json({ access_token: "must-not-be-saved", expires_in: 1800 });
+    }));
+    await expect(getWixAccessToken("site-a")).rejects.toThrow(/disconnected/);
+    expect(await getProviderConnection("wix", "site-a")).toBeNull();
+    await expect(getWixAccessToken("site-a")).rejects.toThrow(/not connected/);
+  });
+
+  it("validates Wix credentials and token contracts and preserves provider retry guidance", async () => {
+    vi.stubEnv("WIX_APP_ID", ""); vi.stubEnv("WIX_APP_SECRET", "");
+    await expect(requestWixInstanceToken("site")).rejects.toThrow(/credentials/);
+    vi.stubEnv("WIX_APP_ID", "synthetic-app"); vi.stubEnv("WIX_APP_SECRET", "synthetic-secret");
+    await expect(requestWixInstanceToken(" ")).rejects.toThrow(/instance ID/);
+    await expect(getWixAccessToken(" ")).rejects.toThrow(/instance ID/);
+    const fetcher = vi.fn().mockResolvedValueOnce(new Response("{}", { status: 429, headers: { "Retry-After": "120" } }))
+      .mockResolvedValueOnce(Response.json({ access_token: "", expires_in: -1 }));
+    vi.stubGlobal("fetch", fetcher);
+    await expect(requestWixInstanceToken("site")).rejects.toMatchObject({ status: 429, retryAfterSeconds: 120 });
+    await expect(requestWixInstanceToken("site")).rejects.toThrow();
   });
 });

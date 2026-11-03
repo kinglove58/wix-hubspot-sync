@@ -173,4 +173,47 @@ describe("contact synchronization", () => {
     const run = provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {});
     await expect(run).rejects.toThrow(/contact ID/); expect(upsert).not.toHaveBeenCalled();
   });
+
+  it.each(["wix", "hubspot"])("fails closed if the matched %s identity cannot be checked", async (provider) => {
+    reads = [null, new Error("database unavailable")];
+    m.findHubSpot.mockResolvedValue({ id: "match" }); m.findWix.mockResolvedValue({ id: "match", revision: 1 });
+    await expect(provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {})).rejects.toThrow(/matched contact identity/);
+    expect(m.updateWix).not.toHaveBeenCalled(); expect(m.updateHubSpot).not.toHaveBeenCalled();
+  });
+
+  it.each(["wix", "hubspot"])("does not continue if establishing a matched %s identity fails", async (provider) => {
+    reads = [null, null]; insert.mockResolvedValue({ error: new Error("database unavailable") });
+    m.findHubSpot.mockResolvedValue({ id: "match" }); m.findWix.mockResolvedValue({ id: "match", revision: 1 });
+    await expect(provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {})).rejects.toThrow(/establish matched/);
+    expect(m.updateWix).not.toHaveBeenCalled(); expect(m.updateHubSpot).not.toHaveBeenCalled();
+  });
+
+  it.each(["wix", "hubspot"])("retains a failed outcome when final %s identity verification is unavailable", async (provider) => {
+    reads = [null, new Error("database unavailable")];
+    await expect(provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {})).rejects.toThrow(/verify contact identity link/);
+    expect(upsert).not.toHaveBeenCalled();
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ outcome: "failed", wix_connection_id: "wix-connection", hubspot_connection_id: "portal-connection" }));
+  });
+
+  it.each(["wix", "hubspot"])("never replaces another link after a conflicting %s write response", async (provider) => {
+    reads = [null, provider === "wix" ? { wix_contact_id: "other" } : { hubspot_contact_id: "other" }];
+    const result = await (provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {}));
+    expect(result).toMatchObject({ status: "skipped", reason: provider === "wix" ? "hubspot_contact_already_linked" : "wix_contact_already_linked" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("respects an explicitly empty reverse mapping configuration", async () => {
+    m.resolve.mockResolvedValue({ wix: { id: "wix-connection" }, hubspot: { id: "portal-connection" }, useDefaultMappings: false });
+    expect(await syncHubSpotContactToWix("site", "hubspot-contact", {})).toMatchObject({ status: "skipped", reason: "no_enabled_mapping_for_direction" });
+    expect(m.createWix).not.toHaveBeenCalled(); expect(m.updateWix).not.toHaveBeenCalled();
+  });
+
+  it.each(["wix", "hubspot"])("uses deterministic fallback for missing %s source timestamps", async (provider) => {
+    m.getWix.mockResolvedValue({ id: "wix-contact", revision: 0, info: { name: { first: "Ada" } } });
+    m.getHubSpot.mockResolvedValue({ id: "hubspot-contact", properties: { firstname: "Ada" } });
+    reads = [provider === "wix" ? { hubspot_contact_id: "hubspot-contact" } : { wix_contact_id: "wix-contact" }, null];
+    m.updateWix.mockResolvedValue({ id: "wix-contact" });
+    const result = await (provider === "wix" ? syncWixContactToHubSpot("site", "wix-contact") : syncHubSpotContactToWix("site", "hubspot-contact", {}));
+    expect(result.status).toBe(provider === "wix" ? "skipped" : "succeeded");
+  });
 });
