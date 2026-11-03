@@ -2,6 +2,8 @@ import "server-only";
 
 import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { z } from "zod";
+import { ProviderApiError } from "@/lib/providers/api-error";
 
 const WIX_TOKEN_URL = "https://www.wixapis.com/oauth2/token";
 
@@ -24,8 +26,8 @@ export async function requestWixInstanceToken(instanceId: string): Promise<WixAc
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   });
-  if (!response.ok) throw new Error(`Wix token request failed with status ${response.status}`);
-  const token = (await response.json()) as WixAccessToken;
+  if (!response.ok) throw new ProviderApiError("wix", response.status, response.headers.get("retry-after"));
+  const token = z.object({ access_token: z.string().min(1), expires_in: z.number().int().positive().max(31_536_000), token_type: z.string().default("Bearer") }).parse(await response.json());
   if (!token.access_token || !token.expires_in) throw new Error("Wix returned an incomplete access token response");
   return token;
 }
@@ -58,11 +60,11 @@ export async function getWixAccessToken(instanceId: string): Promise<WixAccessTo
 
   const token = await requestWixInstanceToken(instanceId);
 
-  const { error: updateError } = await db.from("provider_connections").update({
+  const { data: updated, error: updateError } = await db.from("provider_connections").update({
     encrypted_access_token: encryptToken(token.access_token),
     token_expires_at: new Date(Date.now() + token.expires_in * 1000).toISOString(),
     updated_at: new Date().toISOString(),
-  }).eq("id", connection.id);
-  if (updateError) throw new Error("Unable to securely store refreshed Wix token");
+  }).eq("id", connection.id).is("disconnected_at", null).select("id").maybeSingle();
+  if (updateError || !updated) throw new Error("Unable to securely store refreshed Wix token; connection may be disconnected");
   return token;
 }

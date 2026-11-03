@@ -5,10 +5,13 @@ import {
   ensureHubSpotFormAttributionProperties,
   findHubSpotContactByEmail,
   updateHubSpotContact,
+  getHubSpotContact,
 } from "@/lib/providers/hubspot/client";
 import { resolveProviderConnections } from "@/lib/sync/connection-repository";
 import { getWixContact } from "@/lib/providers/wix/contacts";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { withIntegrationLease } from "@/lib/sync/lease";
+import { prepareContactCreation, rememberContactCreation, createContactWithIntent } from "@/lib/sync/creation-intent";
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -22,7 +25,7 @@ function normalizeKey(value: string): string {
 
 function flattenFields(data: UnknownRecord): Record<string, unknown> {
   const output: Record<string, unknown> = {};
-  const raw = data.fields ?? data.answers ?? data.formFields ?? data.submissionData;
+  const raw = data.submissions ?? data.fields ?? data.answers ?? data.formFields ?? data.submissionData;
   if (Array.isArray(raw)) {
     for (const item of raw) {
       const field = record(item);
@@ -57,18 +60,27 @@ function textAt(objects: UnknownRecord[], keys: string[]): string | undefined {
 }
 
 /** Convert a Wix Forms event into a deduplicated HubSpot contact with attribution. */
-export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventData: UnknownRecord) {
-  const connections = await resolveProviderConnections(instanceId);
-  const submission = record(eventData.submission ?? eventData.formSubmission);
+export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventData: UnknownRecord, pairId?: string) {
+  return withIntegrationLease(`sync:${instanceId}`, async () => {
+    const pair = await resolveProviderConnections(instanceId, pairId);
+    return withIntegrationLease(`portal:${pair.hubspot.id}`, () => syncSubmission(instanceId, eventData, pairId));
+  });
+}
+
+async function syncSubmission(instanceId: string, eventData: UnknownRecord, pairId?: string) {
+  const connections = await resolveProviderConnections(instanceId, pairId);
+  const submission = record(record(eventData.createdEvent).entity ?? eventData.submission ?? eventData.formSubmission);
   const context = record(eventData.submissionContext ?? eventData.context ?? submission.context);
   const fields = { ...flattenFields(eventData), ...flattenFields(submission) };
 
   const email = pick(fields, ["email", "emailAddress", "e-mail"]);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    await getSupabaseAdmin().from("sync_audit_logs").insert({
+    const { error } = await getSupabaseAdmin().from("sync_audit_logs").insert({
       provider: "wix", action: "form_submission", outcome: "skipped",
+      wix_connection_id: connections.wix.id, hubspot_connection_id: connections.hubspot.id,
       safe_details: { reason: "valid_email_required" },
     });
+    if (error) throw new Error("Unable to record skipped form submission");
     return { status: "skipped" as const, reason: "valid_email_required" };
   }
 
@@ -126,15 +138,40 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
   }
   for (const [key, value] of Object.entries(attribution)) if (value) properties[key] = value;
 
-  await ensureHubSpotFormAttributionProperties(customPropertyDefinitions);
-  const existing = await findHubSpotContactByEmail(email);
+  if (customPropertyDefinitions.length > 25) throw new Error("Form exceeds the configured custom property limit");
+  const wixContactId = textAt([eventData, submission], ["contactId", "wixContactId"]);
+  const wixContact = wixContactId ? await getWixContact(instanceId, wixContactId) : null;
+  const sourceLink = wixContactId ? await getSupabaseAdmin().from("contact_links").select("hubspot_contact_id")
+    .eq("wix_connection_id", connections.wix.id).eq("hubspot_connection_id", connections.hubspot.id)
+    .eq("wix_contact_id", wixContactId).maybeSingle() : null;
+  if (sourceLink?.error) throw new Error("Unable to inspect form contact identity");
+  const submissionId = textAt([eventData, submission], ["entityId", "id"]);
+  if (!wixContactId && !submissionId) throw new Error("A stable form submission identity is required");
+  const intent = sourceLink?.data?.hubspot_contact_id ? null : await prepareContactCreation({
+    wixConnectionId: connections.wix.id, hubspotConnectionId: connections.hubspot.id,
+    sourceProvider: "wix", sourceId: wixContactId ?? `form:${submissionId}`, email,
+  });
+  const existing = sourceLink?.data?.hubspot_contact_id
+    ? { id: sourceLink.data.hubspot_contact_id as string }
+    : intent?.destinationId ? await getHubSpotContact(intent.destinationId, [], connections.hubspot.id)
+    : await findHubSpotContactByEmail(intent?.lookupEmail ?? email, connections.hubspot.id);
+  if (existing?.id && wixContactId) {
+    const identity = await getSupabaseAdmin().from("contact_links").select("wix_contact_id")
+      .eq("wix_connection_id", connections.wix.id)
+      .eq("hubspot_connection_id", connections.hubspot.id).eq("hubspot_contact_id", existing.id).maybeSingle();
+    if (identity.error) throw new Error("Unable to inspect form destination identity");
+    if (identity.data && identity.data.wix_contact_id !== wixContactId) throw new Error("Form destination is linked to another Wix contact");
+  }
+  if (existing?.id && intent) await rememberContactCreation(intent, existing.id);
+  await ensureHubSpotFormAttributionProperties(customPropertyDefinitions, connections.hubspot.id);
   const saved = existing?.id
-    ? await updateHubSpotContact(existing.id, properties)
-    : await createHubSpotContact(properties);
+    ? await updateHubSpotContact(existing.id, properties, connections.hubspot.id)
+    : await createContactWithIntent(intent!, () => createHubSpotContact(properties, connections.hubspot.id));
   if (!saved.id) throw new Error("HubSpot did not return a contact ID");
 
   const { error } = await getSupabaseAdmin().from("sync_audit_logs").insert({
     provider: "wix",
+    wix_connection_id: connections.wix.id, hubspot_connection_id: connections.hubspot.id,
     action: "wix_form_submission_to_hubspot",
     outcome: "succeeded",
     hubspot_contact_id: saved.id,
@@ -147,11 +184,10 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
   });
   if (error) throw new Error("Unable to write form submission audit record");
 
-  const wixContactId = textAt([eventData, submission], ["contactId", "wixContactId"]);
-  if (wixContactId) {
-    const wixContact = await getWixContact(instanceId, wixContactId);
+  if (wixContactId && wixContact) {
     const { data: existingLink, error: linkReadError } = await getSupabaseAdmin()
       .from("contact_links").select("hubspot_contact_id")
+      .eq("hubspot_connection_id", connections.hubspot.id)
       .eq("wix_connection_id", connections.wix.id)
       .eq("wix_contact_id", wixContactId).maybeSingle();
     if (linkReadError) throw new Error("Unable to inspect form contact link");
@@ -165,7 +201,7 @@ export async function syncWixFormSubmissionToHubSpot(instanceId: string, eventDa
         last_source: "wix",
         wix_updated_at: wixContact.updatedDate ?? null,
         hubspot_updated_at: saved.updatedAt ?? null,
-      }, { onConflict: "wix_connection_id,wix_contact_id" });
+      }, { onConflict: "wix_connection_id,hubspot_connection_id,wix_contact_id" });
       if (linkWriteError) throw new Error("Unable to save form contact link");
     }
   }

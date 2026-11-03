@@ -6,13 +6,16 @@ const VERSION = "v1";
 const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 
-function decodeKey(encodedKey: string): Buffer {
+export function decodeEncryptionKey(encodedKey: string): Buffer {
+  if (!/^[0-9a-fA-F]{64}$/.test(encodedKey) && !/^[A-Za-z0-9+/]{43}=$/.test(encodedKey)) {
+    throw new Error("TOKEN_ENCRYPTION_KEY must be canonical hex or base64 encoding of exactly 32 bytes");
+  }
   const key = /^[0-9a-fA-F]{64}$/.test(encodedKey)
     ? Buffer.from(encodedKey, "hex")
     : Buffer.from(encodedKey, "base64");
 
-  if (key.length !== 32) {
-    throw new Error("TOKEN_ENCRYPTION_KEY must encode exactly 32 bytes");
+  if (!/^[0-9a-fA-F]{64}$/.test(encodedKey) && key.toString("base64") !== encodedKey) {
+    throw new Error("TOKEN_ENCRYPTION_KEY must encode exactly 32 bytes in canonical base64");
   }
 
   return key;
@@ -23,7 +26,7 @@ function getKey(): Buffer {
   if (!encodedKey) {
     throw new Error("TOKEN_ENCRYPTION_KEY is required for token encryption");
   }
-  return decodeKey(encodedKey);
+  return decodeEncryptionKey(encodedKey);
 }
 
 /**

@@ -5,6 +5,7 @@ export interface FieldMapping {
   targetField: string;
   direction: "wix_to_hubspot" | "hubspot_to_wix" | "both";
   transform: FieldTransform;
+  allowEmpty?: boolean;
 }
 
 export function transformValue(value: unknown, transform: FieldTransform): unknown {
@@ -39,6 +40,13 @@ export function validateMappings(mappings: FieldMapping[]): string[] {
 
     if (!source) errors.push(`${prefix}: source field is required`);
     if (!target) errors.push(`${prefix}: target field is required`);
+    const canonicalSource = source.replace(/^info\.(emails|phones|addresses)\.(\d+)\./, "info.$1.items.$2.");
+    const segments = canonicalSource.split(".");
+    if (source && (segments.length > 12 || segments.some((segment) =>
+      !/^[A-Za-z0-9_]+$/.test(segment) || ["__proto__", "prototype", "constructor"].includes(segment) ||
+      (/^\d+$/.test(segment) && Number(segment) > 99)))) {
+      errors.push(`${prefix}: invalid Wix contact info path`);
+    }
     if (!["none", "trim", "lowercase", "uppercase"].includes(mapping.transform)) {
       errors.push(`${prefix}: unsupported transform`);
     }
@@ -54,9 +62,9 @@ export function validateMappings(mappings: FieldMapping[]): string[] {
 
     let duplicate = false;
     for (const direction of directions) {
-      const destination = direction === "wix_to_hubspot" ? target : source;
+      const destination = direction === "wix_to_hubspot" ? target : canonicalSource;
       const key = `${direction}:${destination.toLowerCase()}`;
-      if (destinations.has(key)) duplicate = true;
+      if ([...destinations.keys()].some((existing) => existing === key || existing.startsWith(`${key}.`) || key.startsWith(`${existing}.`))) duplicate = true;
       else destinations.set(key, index);
     }
 

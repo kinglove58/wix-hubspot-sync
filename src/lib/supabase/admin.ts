@@ -24,6 +24,10 @@ export function getSupabaseAdmin(): SupabaseClient {
       detectSessionInUrl: false,
     },
     global: {
+      fetch: (input, init) => fetch(input, {
+        ...init,
+        signal: init?.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)]) : AbortSignal.timeout(15_000),
+      }),
       headers: { "X-Client-Info": "wix-hubspot-sync-server" },
     },
   });

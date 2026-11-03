@@ -4,9 +4,19 @@ import { transformValue } from "@/lib/sync/mapping";
 const isIndex = (segment: string) => /^\d+$/.test(segment) && Number(segment) <= 99;
 const blockedSegments = new Set(["__proto__", "prototype", "constructor"]);
 
+function segmentsFor(path: string): string[] {
+  const parts = path.split(".");
+  // Wix extended-field dictionaries use literal keys such as custom.website.
+  const dictionary = parts.findIndex((part, index) => part === "extendedFields" && parts[index + 1] === "items");
+  if (dictionary >= 0 && parts.length > dictionary + 2) {
+    return [...parts.slice(0, dictionary + 2), parts.slice(dictionary + 2).join(".")];
+  }
+  return parts;
+}
+
 function readPath(source: Record<string, unknown>, path: string): unknown {
   let value: unknown = source;
-  for (const segment of path.split(".")) {
+  for (const segment of segmentsFor(path)) {
     if (!segment || blockedSegments.has(segment)) return undefined;
     if (Array.isArray(value)) {
       if (!isIndex(segment)) return undefined;
@@ -14,6 +24,7 @@ function readPath(source: Record<string, unknown>, path: string): unknown {
       continue;
     }
     if (value === null || typeof value !== "object") return undefined;
+    if (!Object.prototype.hasOwnProperty.call(value, segment)) return undefined;
     value = (value as Record<string, unknown>)[segment];
   }
   return value;
@@ -29,7 +40,7 @@ function setChild(container: Record<string, unknown> | unknown[], segment: strin
 }
 
 function writePath(target: Record<string, unknown>, path: string, value: unknown): void {
-  const parts = path.split(".");
+  const parts = segmentsFor(path);
   if (!parts.length || parts.length > 12 || parts.some((part) => !part || blockedSegments.has(part))) return;
 
   let cursor: Record<string, unknown> | unknown[] = target;
@@ -62,7 +73,9 @@ export function applyNestedMappings(
     if (mapping.direction !== "both" && mapping.direction !== direction) continue;
     const value = readPath(source, mapping.sourceField);
     if (value === undefined) continue;
-    writePath(output, mapping.targetField, transformValue(value, mapping.transform));
+    const transformed = transformValue(value, mapping.transform);
+    if (!mapping.allowEmpty && (transformed === null || typeof transformed === "string" && transformed.trim() === "")) continue;
+    writePath(output, mapping.targetField, transformed);
   }
   return output;
 }

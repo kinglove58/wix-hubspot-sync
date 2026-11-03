@@ -1,8 +1,9 @@
 import "server-only";
 
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import { encryptToken } from "@/lib/security/token-crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
+import { hubSpotTokenSchema } from "@/lib/providers/hubspot/schema";
 
 const HUBSPOT_AUTHORIZE_URL = "https://app.hubspot.com/oauth/authorize";
 const HUBSPOT_TOKEN_URL = "https://api.hubapi.com/oauth/2026-03/token";
@@ -14,6 +15,22 @@ function required(value: string | undefined, name: string): string {
 
 export function createOAuthState(): string {
   return randomBytes(32).toString("base64url");
+}
+
+export async function storeOAuthState(state: string): Promise<void> {
+  const { error } = await getSupabaseAdmin().from("oauth_states").insert({
+    state_hash: createHash("sha256").update(state).digest("hex"),
+    expires_at: new Date(Date.now() + 600_000).toISOString(),
+  });
+  if (error) throw new Error("Unable to store OAuth state");
+}
+
+export async function consumeOAuthState(state: string): Promise<boolean> {
+  const { data, error } = await getSupabaseAdmin().from("oauth_states").delete()
+    .eq("state_hash", createHash("sha256").update(state).digest("hex"))
+    .gt("expires_at", new Date().toISOString()).select("state_hash").maybeSingle();
+  if (error) throw new Error("Unable to consume OAuth state");
+  return Boolean(data);
 }
 
 export function safeCompareState(expected: string, actual: string): boolean {
@@ -34,15 +51,6 @@ export function buildHubSpotAuthorizationUrl(state: string): string {
   url.searchParams.set("scope", scopes);
   url.searchParams.set("state", state);
   return url.toString();
-}
-
-interface HubSpotTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  expires_in: number;
-  hub_id: number;
-  token_type: string;
-  scopes?: string[];
 }
 
 export async function exchangeHubSpotCode(code: string): Promise<void> {
@@ -70,7 +78,7 @@ export async function exchangeHubSpotCode(code: string): Promise<void> {
     throw new Error(`HubSpot token exchange failed with status ${response.status}`);
   }
 
-  const token = (await response.json()) as HubSpotTokenResponse;
+  const token = hubSpotTokenSchema.parse(await response.json());
   if (!token.access_token || !token.refresh_token || !token.hub_id || !token.expires_in) {
     throw new Error("HubSpot returned an incomplete OAuth token response");
   }

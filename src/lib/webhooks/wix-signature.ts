@@ -5,6 +5,7 @@ export interface WixWebhookEvent {
   instanceId: string;
   eventType: string;
   eventId?: string;
+  issuedAt?: number;
   data: Record<string, unknown>;
   rawEvent: Record<string, unknown>;
 }
@@ -18,6 +19,9 @@ export function verifyAndDecodeWixWebhook(
   const parts = jwt.trim().split(".");
   if (parts.length !== 3 || !publicKey.trim()) throw new Error("Malformed Wix webhook JWT");
   const [encodedHeader, encodedPayload, encodedSignature] = parts;
+  if (parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part) || Buffer.from(part, "base64url").toString("base64url") !== part)) {
+    throw new Error("Malformed Wix webhook JWT encoding");
+  }
 
   const header = JSON.parse(Buffer.from(encodedHeader, "base64url").toString("utf8")) as { alg?: string };
   if (header.alg !== "RS256") throw new Error("Unsupported Wix webhook signature algorithm");
@@ -33,8 +37,8 @@ export function verifyAndDecodeWixWebhook(
   const claims = JSON.parse(Buffer.from(encodedPayload, "base64url").toString("utf8")) as {
     iat?: number; exp?: number; data?: unknown;
   };
-  if (!claims.exp || claims.exp <= nowSeconds) throw new Error("Expired Wix webhook");
-  if (claims.iat && claims.iat > nowSeconds + 60) throw new Error("Wix webhook issued in the future");
+  if (typeof claims.exp !== "number" || !Number.isFinite(claims.exp) || claims.exp <= nowSeconds) throw new Error("Expired Wix webhook");
+  if (claims.iat !== undefined && (typeof claims.iat !== "number" || !Number.isFinite(claims.iat) || claims.iat > nowSeconds + 60 || claims.iat >= claims.exp)) throw new Error("Invalid Wix webhook issued-at time");
   if (claims.data === undefined) throw new Error("Wix webhook data is missing");
 
   // Wix places the event object inside the JWT's data claim. The event object
@@ -50,19 +54,21 @@ export function verifyAndDecodeWixWebhook(
   const eventType = typeof rawEvent.eventType === "string" ? rawEvent.eventType : "";
   if (!instanceId || !eventType) throw new Error("Wix event identity is missing");
 
-  const innerData = typeof rawEvent.data === "string"
+  const innerData: unknown = typeof rawEvent.data === "string"
     ? JSON.parse(rawEvent.data) as Record<string, unknown>
     : (rawEvent.data && typeof rawEvent.data === "object" ? rawEvent.data : rawEvent);
   if (!innerData || typeof innerData !== "object" || Array.isArray(innerData)) {
     throw new Error("Malformed Wix event entity");
   }
+  const entity = innerData as Record<string, unknown>;
 
   return {
     instanceId,
     eventType,
-    eventId: typeof innerData.id === "string" ? innerData.id
+    issuedAt: claims.iat,
+    eventId: typeof entity.id === "string" ? entity.id
       : typeof rawEvent.eventId === "string" ? rawEvent.eventId : undefined,
-    data: innerData,
+    data: entity,
     rawEvent,
   };
 }

@@ -1,4 +1,6 @@
+import "server-only";
 import { z } from "zod";
+import { decodeEncryptionKey } from "@/lib/security/token-crypto";
 
 const serverEnvSchema = z.object({
   APP_BASE_URL: z.string().url().default("http://localhost:3000"),
@@ -19,7 +21,11 @@ const serverEnvSchema = z.object({
   CRON_SECRET: z.string().optional(),
 });
 
-export function getServerEnv() { return serverEnvSchema.parse(process.env); }
+export function getServerEnv() {
+  const env = serverEnvSchema.parse(process.env);
+  if (env.TOKEN_ENCRYPTION_KEY) decodeEncryptionKey(env.TOKEN_ENCRYPTION_KEY.trim());
+  return env;
+}
 export function requireEnv(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Missing required server environment variable: ${name}`);
   return value;

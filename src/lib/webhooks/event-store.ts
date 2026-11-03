@@ -3,6 +3,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
+import { retryTransition } from "@/lib/webhooks/retry-policy";
 
 export type Provider = "wix" | "hubspot";
 export type EventStatus = "pending" | "processing" | "succeeded" | "failed" | "ignored";
@@ -30,17 +31,37 @@ export interface ClaimedWebhookEvent {
   attempts: number;
 }
 
-function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
-  if (event.eventId) return `${event.provider}:${event.eventId}`;
+export function stableIdempotencyKey(event: VerifiedWebhookEvent): string {
+  const account = event.provider === "wix" ? event.payload.instanceId : event.payload.portalId;
+  if (typeof account !== "string" && typeof account !== "number") throw new Error("Webhook account identity is required");
+  const scope = `${event.provider}:${account}`;
+  if (event.eventId) {
+    // HubSpot eventId is not globally unique. Include stable event identity;
+    // attemptNumber changes on redelivery and must never participate in the key.
+    const identity = event.provider === "hubspot"
+      ? [event.eventId, event.eventType, event.correlationId, event.payload.occurredAt,
+        event.payload.subscriptionId, event.payload.objectTypeId, event.payload.propertyName, event.payload.propertyValue]
+      : [event.eventId];
+    return `${scope}:${createHash("sha256").update(JSON.stringify(identity)).digest("hex")}`;
+  }
   const digest = createHash("sha256")
     .update(JSON.stringify({
       provider: event.provider,
       eventType: event.eventType,
       correlationId: event.correlationId ?? null,
-      payload: event.payload,
+      payload: canonicalPayload(event.payload, event.provider),
     }))
     .digest("hex");
-  return `${event.provider}:sha256:${digest}`;
+  return `${scope}:sha256:${digest}`;
+}
+
+/** Object order and delivery-attempt metadata do not identify a logical event. */
+function canonicalPayload(value: unknown, provider: Provider, root = true): unknown {
+  if (Array.isArray(value)) return value.map((item) => canonicalPayload(item, provider, false));
+  if (!value || typeof value !== "object") return value;
+  return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))
+    .filter(([key]) => !(root && provider === "hubspot" && key === "attemptNumber"))
+    .map(([key, item]) => [key, canonicalPayload(item, provider, false)]));
 }
 
 /** Persist only encrypted payloads. Call after provider signature verification. */
@@ -82,23 +103,25 @@ export async function persistVerifiedWebhookEvent(
  * The database function performs the status transition and attempts increment
  * atomically, so two workers cannot claim the same pending event.
  */
-export async function claimPendingWebhookEvent(eventId: string): Promise<boolean> {
-  const { data, error } = await getSupabaseAdmin().rpc("claim_webhook_event", {
+export async function claimPendingWebhookEvent(eventId: string): Promise<number | null> {
+  const { data, error } = await getSupabaseAdmin().rpc("claim_webhook_event_lease", {
     p_event_id: eventId,
   });
   if (error) throw new Error("Unable to claim webhook event");
-  return data === true;
+  return typeof data === "number" && Number.isSafeInteger(data) && data > 0 ? data : null;
 }
 
 /** Read payload only after this worker has successfully claimed the event. */
 export async function getClaimedWebhookEvent(
   eventId: string,
+  leaseVersion: number,
 ): Promise<ClaimedWebhookEvent | null> {
   const { data, error } = await getSupabaseAdmin()
     .from("webhook_events")
     .select("id,provider,event_type,correlation_id,payload_encrypted,attempts,status")
     .eq("id", eventId)
     .eq("status", "processing")
+    .eq("lease_version", leaseVersion)
     .maybeSingle();
 
   if (error) throw new Error("Unable to read claimed webhook event");
@@ -129,36 +152,40 @@ export async function getClaimedWebhookEvent(
 
 export async function finishWebhookEvent(
   eventId: string,
-  outcome: "succeeded" | "failed" | "ignored",
+  outcome: "succeeded" | "failed" | "ignored" | "pending",
   safeErrorCode?: string,
+  expectedLeaseVersion?: number,
+  retryAfterSeconds?: number | null,
+  permanent = false,
 ): Promise<void> {
+  if (!Number.isSafeInteger(expectedLeaseVersion) || !expectedLeaseVersion || expectedLeaseVersion < 1) throw new Error("Webhook lease is required");
   const db = getSupabaseAdmin();
   const { data: current, error: readError } = await db
     .from("webhook_events")
     .select("attempts")
     .eq("id", eventId)
     .eq("status", "processing")
+    .eq("lease_version", expectedLeaseVersion)
     .maybeSingle();
   if (readError || !current) throw new Error("Unable to read processing webhook event");
 
-  // Exponential-ish provider-friendly retry schedule: 1m, 10m, 1h, 2h.
-  const delaysSeconds = [60, 600, 3600, 7200];
-  const attempts = Number(current.attempts ?? 1);
-  const retryDelay = outcome === "failed" && attempts < 5
-    ? delaysSeconds[Math.min(Math.max(attempts - 1, 0), delaysSeconds.length - 1)]
-    : null;
+  const transition = retryTransition({ outcome, attempts: Number(current.attempts), permanent, retryAfterSeconds });
 
-  const { error } = await db
+  const { data: updated, error } = await db
     .from("webhook_events")
     .update({
       status: outcome,
-      processed_at: new Date().toISOString(),
+      processed_at: outcome === "pending" ? null : new Date().toISOString(),
+      attempts: transition.attempts,
+      terminal: transition.terminal,
       processing_started_at: null,
-      next_attempt_at: retryDelay === null ? null : new Date(Date.now() + retryDelay * 1000).toISOString(),
+      next_attempt_at: transition.delaySeconds === null ? null : new Date(Date.now() + transition.delaySeconds * 1000).toISOString(),
       error_code: safeErrorCode ?? null,
     })
     .eq("id", eventId)
-    .eq("status", "processing");
+    .eq("status", "processing")
+    .eq("lease_version", expectedLeaseVersion)
+    .select("id").maybeSingle();
 
-  if (error) throw new Error("Unable to update webhook event status");
+  if (error || !updated) throw new Error("Unable to finish webhook event: lease lost");
 }

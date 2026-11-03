@@ -2,12 +2,14 @@ import "server-only";
 import { decryptToken, encryptToken } from "@/lib/security/token-crypto";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 import { getServerEnv, requireEnv } from "@/lib/env";
+import { withIntegrationLease } from "@/lib/sync/lease";
 
 export type Provider = "wix" | "hubspot";
 
 export async function saveProviderConnection(input: {
   provider: Provider; externalAccountId: string; accountLabel?: string | null;
   accessToken: string; refreshToken?: string | null; expiresIn?: number; scopes?: string[];
+  onlyIfNew?: boolean;
 }) {
   const supabase = getSupabaseAdmin();
   const expiresAt = input.expiresIn ? new Date(Date.now() + input.expiresIn * 1000).toISOString() : null;
@@ -22,7 +24,7 @@ export async function saveProviderConnection(input: {
     connected_at: new Date().toISOString(),
     disconnected_at: null,
     updated_at: new Date().toISOString(),
-  }, { onConflict: "provider,external_account_id" }).select("id,provider,external_account_id,account_label,token_expires_at,scopes").single();
+  }, { onConflict: "provider,external_account_id", ignoreDuplicates: input.onlyIfNew ?? false }).select("id,provider,external_account_id,account_label,token_expires_at,scopes").single();
   if (error) throw new Error("Unable to save provider connection");
   return data;
 }
@@ -31,7 +33,7 @@ export async function getProviderConnection(provider: Provider, externalAccountI
   const supabase = getSupabaseAdmin();
   let query = supabase.from("provider_connections").select("*").eq("provider", provider).is("disconnected_at", null);
   if (externalAccountId) query = query.eq("external_account_id", externalAccountId);
-  const { data, error } = await query.order("connected_at", { ascending: false }).limit(1).maybeSingle();
+  const { data, error } = await query.maybeSingle();
   if (error) throw new Error("Unable to load provider connection");
   if (!data) return null;
   return {
@@ -43,6 +45,19 @@ export async function getProviderConnection(provider: Provider, externalAccountI
 
 export async function disconnectProvider(provider: Provider, externalAccountId: string) {
   const current = await getProviderConnection(provider, externalAccountId);
+  const key = provider === "wix" ? `sync:${externalAccountId}` : `portal:${current?.id ?? externalAccountId}`;
+  return withIntegrationLease(key, () => disconnectConnection(provider, externalAccountId));
+}
+
+async function disconnectConnection(provider: Provider, externalAccountId: string) {
+  const current = await getProviderConnection(provider, externalAccountId);
+  // Local disable happens before revocation, so an unavailable provider cannot
+  // leave background synchronization running after the operator disconnects.
+  const { error } = await getSupabaseAdmin().from("provider_connections").update({
+    disconnected_at: new Date().toISOString(), encrypted_access_token: null, encrypted_refresh_token: null,
+    updated_at: new Date().toISOString(),
+  }).eq("provider", provider).eq("external_account_id", externalAccountId);
+  if (error) throw new Error("Unable to disconnect provider");
   if (provider === "hubspot" && current?.refreshToken) {
     const env = getServerEnv();
     const body = new URLSearchParams({
@@ -58,12 +73,7 @@ export async function disconnectProvider(provider: Provider, externalAccountId: 
       cache: "no-store",
       signal: AbortSignal.timeout(15_000),
     });
-    if (!response.ok) throw new Error("HubSpot token revocation failed; local credentials were retained");
+    if (!response.ok) throw new Error("Connection disabled locally; HubSpot token revocation failed");
   }
 
-  const { error } = await getSupabaseAdmin().from("provider_connections").update({
-    disconnected_at: new Date().toISOString(), encrypted_access_token: null, encrypted_refresh_token: null,
-    updated_at: new Date().toISOString(),
-  }).eq("provider", provider).eq("external_account_id", externalAccountId);
-  if (error) throw new Error("Unable to disconnect provider");
 }

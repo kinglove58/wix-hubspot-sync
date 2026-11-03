@@ -13,7 +13,7 @@ function normalizeRequestUri(requestUrl: string): string | null {
     const withoutFragment = requestUrl.split("#", 1)[0];
     new URL(withoutFragment);
     return withoutFragment.replace(/%(3A|2F|3F|40|21|24|27|28|29|2A|2C|3B)/gi,
-      (encoded) => HUBSPOT_URL_ESCAPES[encoded.toUpperCase()] ?? encoded);
+      (encoded) => HUBSPOT_URL_ESCAPES[encoded.toUpperCase()]);
   } catch {
     return null;
   }

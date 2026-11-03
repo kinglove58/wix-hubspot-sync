@@ -2,6 +2,12 @@
   "name": "wix-hubspot-sync",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "overrides": {
+    "postcss": "^8.5.23"
+  },
   "description": "Bidirectional Wix and HubSpot contact synchronization",
   "scripts": {
     "dev": "next dev",
@@ -10,23 +16,34 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:smoke": "node scripts/smoke.mjs",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "test:contract": "vitest run tests/wix-contacts.test.ts tests/hubspot-client.test.ts tests/event-types.test.ts",
+    "test:e2e": "playwright test",
+    "test:integration": "vitest run tests/database.test.ts tests/sync-engine.test.ts tests/connection-routing.test.ts tests/form-submission.test.ts tests/creation-intent.test.ts tests/webhook-event-store.test.ts tests/full-workflow.test.ts tests/lease.test.ts tests/oauth-lifecycle.test.ts",
+    "test:unit": "vitest run tests/mapping.test.ts tests/nested-mapping.test.ts tests/provider-mapping.test.ts tests/contact-mapping.test.ts tests/conflict.test.ts tests/echo-guard.test.ts tests/retry-policy.test.ts src/sync",
+    "test:security": "vitest run tests/admin-auth.test.ts tests/oauth-callback.test.ts tests/webhook-routes.test.ts tests/wix-signature.test.ts tests/hubspot-signature.test.ts tests/token-crypto.test.ts tests/request-body.test.ts tests/worker-route.test.ts tests/oauth-lifecycle.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
     "next": "^15.5.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "zod": "^4.1.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "zod": "^4.1.0"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.14",
+    "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.64.1",
     "@types/node": "^22.18.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@vitest/coverage-v8": "^5.0.5",
     "eslint": "^9.34.0",
     "eslint-config-next": "^15.5.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.5"
   }
 }

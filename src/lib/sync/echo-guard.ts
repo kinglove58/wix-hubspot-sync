@@ -1,8 +1,13 @@
 import "server-only";
 
-import { getSupabaseAdmin } from "@/lib/supabase/admin";
-
 export type SyncOrigin = "wix" | "hubspot";
+
+export function isSameSyncEcho(currentUpdatedAt: string | null | undefined, syncedUpdatedAt: string | null | undefined): boolean {
+  if (!currentUpdatedAt || !syncedUpdatedAt) return false;
+  const current = Date.parse(currentUpdatedAt);
+  const synced = Date.parse(syncedUpdatedAt);
+  return Number.isFinite(current) && Number.isFinite(synced) && current <= synced;
+}
 
 /**
  * Suppresses a near-immediate echo from the provider we just wrote to.
@@ -25,28 +30,6 @@ export function isLikelySyncEcho(input: {
 
   // Only ignore an opposite-provider event whose source timestamp is no newer
   // than the sync write, within a small provider clock-skew allowance.
-  const tolerance = input.toleranceMs ?? 30_000;
+  const tolerance = input.toleranceMs ?? 0;
   return updatedAt <= syncedAt + tolerance;
-}
-
-export async function findContactLinkByWixId(wixContactId: string) {
-  const { data, error } = await getSupabaseAdmin()
-    .from("contact_links")
-    .select("id,wix_contact_id,hubspot_contact_id,last_synced_at,last_source,wix_updated_at,hubspot_updated_at")
-    .eq("wix_contact_id", wixContactId)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error("Unable to look up contact synchronization link");
-  return data;
-}
-
-export async function findContactLinkByHubSpotId(hubspotContactId: string) {
-  const { data, error } = await getSupabaseAdmin()
-    .from("contact_links")
-    .select("id,wix_contact_id,hubspot_contact_id,last_synced_at,last_source,wix_updated_at,hubspot_updated_at")
-    .eq("hubspot_contact_id", hubspotContactId)
-    .limit(1)
-    .maybeSingle();
-  if (error) throw new Error("Unable to look up contact synchronization link");
-  return data;
 }

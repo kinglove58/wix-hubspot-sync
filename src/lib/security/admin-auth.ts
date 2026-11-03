@@ -41,6 +41,11 @@ export function isAuthorizedAdmin(request: Request): boolean {
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (env.ADMIN_API_KEY && supplied && equalSecret(env.ADMIN_API_KEY, supplied)) return true;
 
+  if (!["GET", "HEAD", "OPTIONS"].includes(request.method.toUpperCase())) {
+    const origin = request.headers.get("origin");
+    if (origin !== new URL(env.APP_BASE_URL).origin) return false;
+  }
+
   const cookieHeader = request.headers.get("cookie") ?? "";
   const cookie = cookieHeader.split(";").map((part) => part.trim())
     .find((part) => part.startsWith(`${COOKIE_NAME}=`));

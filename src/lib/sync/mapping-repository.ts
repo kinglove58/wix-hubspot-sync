@@ -13,10 +13,9 @@ export async function listEnabledMappings(
 ): Promise<StoredFieldMapping[]> {
   const { data, error } = await getSupabaseAdmin()
     .from("field_mappings")
-    .select("id,wix_field,hubspot_property,sync_direction,transform,enabled")
+    .select("id,wix_field,hubspot_property,sync_direction,transform,enabled,allow_empty")
     .eq("wix_connection_id", wixConnectionId)
     .eq("hubspot_connection_id", hubspotConnectionId)
-    .eq("enabled", true)
     .order("created_at", { ascending: true });
 
   if (error) throw new Error("Unable to load field mappings");
@@ -27,6 +26,7 @@ export async function listEnabledMappings(
     direction: row.sync_direction === "bidirectional" ? "both" : row.sync_direction as FieldMapping["direction"],
     transform: row.transform as FieldMapping["transform"],
     enabled: Boolean(row.enabled),
+    allowEmpty: row.allow_empty === true,
   }));
 }
 

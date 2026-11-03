@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exchangeHubSpotCode, safeCompareState } from "@/lib/providers/hubspot/oauth";
+import { consumeOAuthState, exchangeHubSpotCode, safeCompareState } from "@/lib/providers/hubspot/oauth";
+import { isAuthorizedAdmin } from "@/lib/security/admin-auth";
 
 export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
+  if (!isAuthorizedAdmin(request)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const url = new URL(request.url);
   const providerError = url.searchParams.get("error");
   if (providerError) {
@@ -19,9 +21,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    if (!await consumeOAuthState(state)) return NextResponse.json({ error: "Invalid or expired OAuth state" }, { status: 400 });
     await exchangeHubSpotCode(code);
     const response = NextResponse.redirect(new URL("/?connection=hubspot-connected", request.url));
-    response.cookies.delete("hubspot_oauth_state");
+    response.cookies.set("hubspot_oauth_state", "", { path: "/api/oauth/hubspot", maxAge: 0 });
     return response;
   } catch {
     return NextResponse.json({ error: "HubSpot connection could not be completed" }, { status: 502 });

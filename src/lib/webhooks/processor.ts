@@ -1,181 +1,117 @@
 import "server-only";
-
 import { getHubSpotContact } from "@/lib/providers/hubspot/client";
 import { getWixContact } from "@/lib/providers/wix/contacts";
 import { syncHubSpotContactToWix, syncWixContactToHubSpot } from "@/lib/sync/engine";
 import { syncWixFormSubmissionToHubSpot } from "@/lib/sync/form-submission";
 import { listEnabledMappings } from "@/lib/sync/mapping-repository";
-import { resolveProviderConnections } from "@/lib/sync/connection-repository";
+import { listSyncTargets, resolveProviderConnections } from "@/lib/sync/connection-repository";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
-import {
-  claimPendingWebhookEvent,
-  finishWebhookEvent,
-  getClaimedWebhookEvent,
-} from "@/lib/webhooks/event-store";
+import { ProviderApiError } from "@/lib/providers/api-error";
+import { isSameSyncEcho } from "@/lib/sync/echo-guard";
+import { requestWixInstanceToken } from "@/lib/providers/wix/client";
+import { saveProviderConnection } from "@/lib/providers/connections";
+import { isHubSpotContactEvent, isWixContactEvent } from "@/lib/webhooks/event-types";
+import { logOperationFailure } from "@/lib/security/log";
+import { IntegrationBusyError } from "@/lib/sync/lease";
+import { ContactReconciliationRequired } from "@/lib/sync/creation-intent";
+import { claimPendingWebhookEvent, finishWebhookEvent, getClaimedWebhookEvent, type ClaimedWebhookEvent } from "@/lib/webhooks/event-store";
+import { rootFailure, isPermanentFailure } from "@/lib/webhooks/retry-policy";
+import { withSyncAuditContext } from "@/lib/sync/audit-context";
 
-export type ProcessResult = "succeeded" | "ignored";
+export type ProcessResult = "succeeded" | "ignored" | "deferred";
+const asId = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : null;
 
-function asId(value: unknown): string | null {
-  return typeof value === "string" || typeof value === "number" ? String(value) : null;
-}
-
-function readHubSpotObjectId(payload: Record<string, unknown>): string | null {
-  return asId(payload.objectId);
-}
-
-function isWixFormSubmissionEvent(eventType: string): boolean {
-  const normalized = eventType.toLowerCase();
-  return (normalized.includes("submission") &&
-    (normalized.includes("created") || normalized.includes("submitted"))) ||
-    normalized.includes("formsubmitted") || normalized.includes("form_submitted");
-}
-
-function isWixContactEvent(eventType: string): boolean {
-  const normalized = eventType.toLowerCase();
-  return normalized.includes("contact_created") ||
-    normalized.includes("contact_updated") ||
-    normalized === "contact.created" ||
-    normalized === "contact.updated";
-}
-
-/** Distinguish our own provider write from a later external edit. */
-function isSameSyncEcho(
-  currentUpdatedAt: string | null | undefined,
-  syncedUpdatedAt: string | null | undefined,
-  lastSyncedAt: string | null | undefined,
-): boolean {
-  if (currentUpdatedAt && syncedUpdatedAt) {
-    const current = Date.parse(currentUpdatedAt);
-    const synced = Date.parse(syncedUpdatedAt);
-    if (Number.isFinite(current) && Number.isFinite(synced)) return current <= synced + 2_000;
+async function processWix(event: ClaimedWebhookEvent): Promise<"succeeded" | "ignored"> {
+  const db = getSupabaseAdmin();
+  const instanceId = asId(event.payload.instanceId);
+  if (!instanceId) throw new Error("Missing Wix instance identity");
+  if (event.eventType === "AppRemoved") {
+    const result = await db.rpc("apply_wix_removal", { p_event_id: event.id, p_instance_id: instanceId });
+    if (result.error) throw new Error("Unable to apply Wix removal");
+    return "succeeded";
   }
-  if (!lastSyncedAt) return false;
-  const lastSync = Date.parse(lastSyncedAt);
-  return Number.isFinite(lastSync) && Date.now() - lastSync < 30_000;
+  const isForm = event.eventType === "wix.forms.v4.submission_created";
+  if (event.eventType !== "AppInstalled" && !isWixContactEvent(event.eventType) && !isForm) return "ignored";
+  const installation = await db.from("provider_connections").select("id,disconnected_at")
+    .eq("provider", "wix").eq("external_account_id", instanceId).maybeSingle();
+  if (installation.error) throw new Error("Unable to inspect Wix installation");
+  if (installation.data?.disconnected_at) return "ignored";
+  if (!installation.data) {
+    const token = await requestWixInstanceToken(instanceId);
+    await saveProviderConnection({ provider: "wix", externalAccountId: instanceId, accessToken: token.access_token, expiresIn: token.expires_in, onlyIfNew: true });
+  }
+  if (event.eventType === "AppInstalled") return "succeeded";
+  const targets = await listSyncTargets("wix", instanceId);
+  const contactId = asId(event.payload.contactId) ?? event.correlationId;
+  if (!isForm && !contactId) throw new Error("Missing Wix contact identity");
+  let processed = false;
+  for (const target of targets) {
+    if (isForm) {
+      if (!event.payload.data || typeof event.payload.data !== "object" || Array.isArray(event.payload.data)) throw new Error("Malformed form submission");
+      await syncWixFormSubmissionToHubSpot(instanceId, event.payload.data as Record<string, unknown>, target.pairId);
+    } else {
+      const pair = await resolveProviderConnections(instanceId, target.pairId);
+      const link = await db.from("contact_links").select("last_source,wix_updated_at")
+        .eq("wix_connection_id", pair.wix.id).eq("hubspot_connection_id", pair.hubspot.id).eq("wix_contact_id", contactId!).maybeSingle();
+      if (link.error) throw new Error("Unable to inspect Wix sync identity");
+      if (link.data?.last_source === "hubspot") {
+        const current = await getWixContact(instanceId, contactId!);
+        if (isSameSyncEcho(current.updatedDate, link.data.wix_updated_at)) continue;
+      }
+      await syncWixContactToHubSpot(instanceId, contactId!, target.pairId);
+    }
+    processed = true;
+  }
+  return processed ? "succeeded" : "ignored";
 }
 
-/**
- * Processes provider events from the durable queue. Timestamp-aware echo
- * suppression ignores our own reciprocal writes but permits later user edits.
- */
+async function processHubSpot(event: ClaimedWebhookEvent): Promise<"succeeded" | "ignored"> {
+  if (!isHubSpotContactEvent(event.eventType, event.payload)) return "ignored";
+  const portalId = asId(event.payload.portalId);
+  const contactId = asId(event.payload.objectId);
+  if (!portalId || !contactId) throw new Error("Missing HubSpot event identity");
+  const targets = await listSyncTargets("hubspot", portalId);
+  let processed = false;
+  for (const target of targets) {
+    const pair = await resolveProviderConnections(target.instanceId, target.pairId);
+    const mappings = await listEnabledMappings(pair.wix.id, pair.hubspot.id);
+    const contact = await getHubSpotContact(contactId, mappings.filter((m) => m.enabled).map((m) => m.targetField), pair.hubspot.id);
+    const link = await getSupabaseAdmin().from("contact_links").select("last_source,hubspot_updated_at")
+      .eq("wix_connection_id", pair.wix.id).eq("hubspot_connection_id", pair.hubspot.id).eq("hubspot_contact_id", contactId).maybeSingle();
+    if (link.error) throw new Error("Unable to inspect HubSpot sync identity");
+    if (link.data?.last_source === "wix" && isSameSyncEcho(contact.updatedAt, link.data.hubspot_updated_at)) continue;
+    await syncHubSpotContactToWix(target.instanceId, contactId, contact, target.pairId);
+    processed = true;
+  }
+  return processed ? "succeeded" : "ignored";
+}
+
+/** Fan out only to explicit pairs. A failed pair leaves the durable event retryable;
+ * successful pairs reconcile against links and live versions on the next delivery. */
 export async function processWebhookEvent(eventId: string): Promise<ProcessResult> {
-  const claimed = await claimPendingWebhookEvent(eventId);
-  if (!claimed) return "ignored";
-
+  const lease = await claimPendingWebhookEvent(eventId);
+  if (!lease) return "ignored";
+  let event: ClaimedWebhookEvent | null = null;
   try {
-    const event = await getClaimedWebhookEvent(eventId);
-    if (!event) throw new Error("Claimed event could not be loaded");
-    const db = getSupabaseAdmin();
-
-    if (event.provider === "wix") {
-      const instanceId = asId(event.payload.instanceId);
-      if (!instanceId) {
-        await finishWebhookEvent(eventId, "ignored", "MISSING_WIX_INSTANCE_ID");
-        return "ignored";
-      }
-
-      if (isWixFormSubmissionEvent(event.eventType)) {
-        const data = event.payload.data;
-        if (!data || typeof data !== "object" || Array.isArray(data)) {
-          await finishWebhookEvent(eventId, "ignored", "MISSING_FORM_SUBMISSION_DATA");
-          return "ignored";
-        }
-        await syncWixFormSubmissionToHubSpot(instanceId, data as Record<string, unknown>);
-        await finishWebhookEvent(eventId, "succeeded");
-        return "succeeded";
-      }
-
-      if (!isWixContactEvent(event.eventType)) {
-        await finishWebhookEvent(eventId, "ignored", "UNSUPPORTED_EVENT");
-        return "ignored";
-      }
-
-      const wixContactId = asId(event.payload.contactId) ?? event.correlationId;
-      if (!wixContactId) {
-        await finishWebhookEvent(eventId, "ignored", "MISSING_WIX_CONTACT_ID");
-        return "ignored";
-      }
-
-      const { data: wixConnection, error: wixError } = await db
-        .from("provider_connections")
-        .select("id")
-        .eq("provider", "wix")
-        .eq("external_account_id", instanceId)
-        .is("disconnected_at", null)
-        .maybeSingle();
-      if (wixError) throw new Error("Unable to resolve Wix installation");
-      if (!wixConnection) {
-        await finishWebhookEvent(eventId, "ignored", "WIX_NOT_CONNECTED");
-        return "ignored";
-      }
-
-      const { data: link, error: linkError } = await db.from("contact_links")
-        .select("last_source,wix_updated_at,last_synced_at")
-        .eq("wix_connection_id", wixConnection.id)
-        .eq("wix_contact_id", wixContactId)
-        .maybeSingle();
-      if (linkError) throw new Error("Unable to inspect Wix sync link");
-      if (link?.last_source === "hubspot") {
-        const currentWix = await getWixContact(instanceId, wixContactId);
-        if (isSameSyncEcho(currentWix.updatedDate, link.wix_updated_at, link.last_synced_at)) {
-          await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
-          return "ignored";
-        }
-      }
-
-      await syncWixContactToHubSpot(instanceId, wixContactId);
-      await finishWebhookEvent(eventId, "succeeded");
-      return "succeeded";
+    event = await getClaimedWebhookEvent(eventId, lease);
+    if (!event) throw new Error("Claimed event unavailable");
+    const claimed = event;
+    const result = await withSyncAuditContext({ eventId, attempt: claimed.attempts },
+      () => claimed.provider === "wix" ? processWix(claimed) : processHubSpot(claimed));
+    if (event.eventType !== "AppRemoved") await finishWebhookEvent(eventId, result, result === "ignored" ? "NO_APPLICABLE_WRITE" : undefined, lease);
+    return result;
+  } catch (error) {
+    const cause = rootFailure(error);
+    if (cause instanceof IntegrationBusyError) {
+      await finishWebhookEvent(eventId, "pending", "INTEGRATION_BUSY", lease);
+      return "deferred";
     }
-
-    if (event.provider === "hubspot" &&
-      ["contact.creation", "contact.propertyChange"].includes(event.eventType)) {
-      const hubspotContactId = readHubSpotObjectId(event.payload);
-      if (!hubspotContactId) {
-        await finishWebhookEvent(eventId, "ignored", "MISSING_HUBSPOT_CONTACT_ID");
-        return "ignored";
-      }
-
-      const { data: wixConnection, error } = await db.from("provider_connections")
-        .select("id,external_account_id")
-        .eq("provider", "wix")
-        .is("disconnected_at", null)
-        .not("external_account_id", "is", null)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error("Unable to resolve Wix installation");
-      if (!wixConnection?.external_account_id) {
-        await finishWebhookEvent(eventId, "ignored", "WIX_NOT_CONNECTED");
-        return "ignored";
-      }
-
-      const { data: link, error: linkError } = await db.from("contact_links")
-        .select("last_source,hubspot_updated_at,last_synced_at")
-        .eq("wix_connection_id", wixConnection.id)
-        .eq("hubspot_contact_id", hubspotContactId)
-        .maybeSingle();
-      if (linkError) throw new Error("Unable to inspect HubSpot sync link");
-
-      const connections = await resolveProviderConnections(wixConnection.external_account_id as string);
-      const mappings = await listEnabledMappings(wixConnection.id, connections.hubspot.id);
-      const contact = await getHubSpotContact(hubspotContactId, mappings.map((mapping) => mapping.targetField));
-      if (!contact.id) throw new Error("HubSpot contact response is incomplete");
-
-      if (link?.last_source === "wix" &&
-          isSameSyncEcho(contact.updatedAt, link.hubspot_updated_at, link.last_synced_at)) {
-        await finishWebhookEvent(eventId, "ignored", "SYNC_ECHO");
-        return "ignored";
-      }
-
-      await syncHubSpotContactToWix(wixConnection.external_account_id, hubspotContactId, contact);
-      await finishWebhookEvent(eventId, "succeeded");
-      return "succeeded";
-    }
-
-    await finishWebhookEvent(eventId, "ignored", "UNSUPPORTED_EVENT");
-    return "ignored";
-  } catch {
-    await finishWebhookEvent(eventId, "failed", "EVENT_PROCESSING_FAILED");
+    const code = cause instanceof ContactReconciliationRequired ? "CONTACT_RECONCILIATION_REQUIRED"
+      : cause instanceof ProviderApiError ? `${cause.provider.toUpperCase()}_HTTP_${cause.status}` : "EVENT_PROCESSING_FAILED";
+    logOperationFailure(code, { eventId, correlationId: eventId, provider: event?.provider,
+      operation: "process_webhook", result: "failed", attempt: event?.attempts,
+      status: cause instanceof ProviderApiError ? cause.status : undefined });
+    await finishWebhookEvent(eventId, "failed", code, lease, cause instanceof ProviderApiError ? cause.retryAfterSeconds : null, isPermanentFailure(cause));
     throw new Error("Webhook event processing failed");
   }
 }

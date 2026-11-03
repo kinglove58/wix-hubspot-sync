@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processWebhookEvent } from "@/lib/webhooks/processor";
+import { z } from "zod";
+import { withIntegrationWorkBudget } from "@/lib/sync/lease";
 
 export const runtime = "nodejs";
+export const maxDuration = 300;
 
 export async function POST(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
@@ -21,26 +24,26 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  if (
-    !body ||
-    typeof body !== "object" ||
-    !Array.isArray((body as { eventIds?: unknown }).eventIds) ||
-    (body as { eventIds: unknown[] }).eventIds.length < 1 ||
-    (body as { eventIds: unknown[] }).eventIds.length > 20 ||
-    !(body as { eventIds: unknown[] }).eventIds.every(
-      (id) => typeof id === "string" && /^[0-9a-f-]{36}$/i.test(id),
-    )
-  ) {
+  const parsed = z.object({ eventIds: z.array(z.uuid()).min(1).max(20) }).safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json({ error: "eventIds must contain 1–20 event UUIDs" }, { status: 400 });
   }
 
-  const eventIds = (body as { eventIds: string[] }).eventIds;
-  const results = await Promise.allSettled(eventIds.map((id) => processWebhookEvent(id)));
+  const eventIds = [...new Set(parsed.data.eventIds)];
+  const results: PromiseSettledResult<Awaited<ReturnType<typeof processWebhookEvent>>>[] = [];
+  const started = Date.now();
+  await withIntegrationWorkBudget(async () => {
+    for (const id of eventIds) {
+      if (Date.now() - started >= 225_000) break;
+      results.push(...await Promise.allSettled([processWebhookEvent(id)]));
+    }
+  });
   const processed = results.filter((result) => result.status === "fulfilled").length;
   const failed = results.length - processed;
 
   return NextResponse.json({
     requested: eventIds.length,
+    attempted: results.length,
     processed,
     failed,
   }, { status: failed ? 207 : 200 });
