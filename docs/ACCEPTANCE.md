@@ -26,6 +26,7 @@ This table does not convert test coverage into production certification.
 | Worker crash / stale lease | SQL reclaim, independent completion fencing, owner/deadline checks | Multiple processes, forced termination and long suspension |
 | Retry limit / permanent errors | 100% retry-policy branches, exhausted lease and terminal workflow | Deployed scheduler sweeps and alerts |
 | Partial mapping | Defaults retained, empty/null opt-in, one-way masks | Portal-specific fields and Wix geographic values |
+| Delayed or disabled Forms | Timestamp preflight, mapping masks, schema bounds and audit/link failure tests | Actual site submission timestamps and field IDs |
 | Same IDs/emails across accounts | Pair-scoped SQL workflow; shared destinations explicit | Independent real test-account verification |
 | Concurrent events | Two simultaneous processing calls create one destination identity | Multi-process/load fault injection |
 

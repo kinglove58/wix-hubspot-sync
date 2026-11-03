@@ -6,6 +6,9 @@ Audited the existing application, six baseline migrations, integrations, routes,
 environment references and CI. Retained Next.js/TypeScript/Supabase and implemented
 explicit shared-account pairing, provider contract corrections, OAuth replay protection,
 durable create reconciliation, mapping safety, fenced workers and terminal retries.
+Follow-up inspection also corrected stale Forms updates, disabled-mapping bypass,
+fabricated submission times and premature success auditing. Removed an unused
+single-row mapping writer so configuration has one atomic write path.
 Production status: **NOT READY**. Controlled staging is the next verification environment.
 
 ## B. Architecture
@@ -49,10 +52,12 @@ HubSpot's final-read/PATCH sequence cannot prevent an external edit racing the P
 ## E. Testing
 
 See `VALIDATION.md` for the required command/result table and measured coverage.
-207 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
+233 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
 and seven HTTP smoke checks pass. Provider HTTP is synthetic; SQL uses PGlite.
-Overall coverage: 86.83% statements / 83.30% branches; runtime engine: 100% / 93.54%.
-The broader 90% branch target is still open; live provider and production checks are unverified.
+Overall coverage: 91.85% statements / 88.48% branches; runtime engine: 100% / 93.54%.
+Synchronization measures 95.67% statements / 91.94% branches and security measures
+98.01% / 97.18%, meeting the core targets. Whole-library branch coverage is 88.48%;
+live provider and production checks remain unverified.
 
 ## F. Database
 
@@ -69,6 +74,8 @@ or invent ownership to pass a constraint. See the deployment ledger/RLS queries.
 
 Branch `fix/webhook-retries`; main unchanged. PR #1 verified open and unmerged.
 Implementation `43a8ddf`, tests/CI `8725875`; documentation follows separately.
+Forms safety follow-up is implemented in `ec91f93`, with 27 focused Forms tests and
+two additional SQL-backed workflows. Synchronization now has an aggregate 90% gate.
 The divergent development history was merged as `c70a837` without force-pushing;
 its three regression test files were retained and adapted to the current contracts.
 Hosted Node 22 CI passed for that merge:
@@ -85,7 +92,7 @@ No PR merge or production deployment was performed or authorized.
 | P1 | Resolve/accept documented HubSpot edit-race semantics | Product + engineering; no verified atomic conditional PATCH |
 | P1 | Customer membership/resource authorization before self-service use | Engineering; console currently grants global operator access |
 | P1 | Actual HTTPS deployment, secrets, scheduler execution and alerts | Hosting/account owner after staging approval |
-| P2 | Broader 90% branch coverage and concurrent crash/load fault injection | Engineering + QA; measurements are below target |
+| P2 | Extend provider/queue boundary coverage and concurrent crash/load fault injection | Engineering + QA; core coverage targets met, live fault testing outstanding |
 | P2 | Retention, key rotation, restore exercise and ingress throttling | Security/operations before real personal data |
 | P2 | Contact deletion/merge, geographic conversion and bulk import | Product scope and provider acceptance |
 

@@ -72,6 +72,13 @@ echo detection requires the stored provider-returned timestamp, not a broad time
 Wix revision checks protect writes. HubSpot gets a final target timestamp preflight,
 but an external edit racing PATCH remains a documented limitation.
 
+Forms use immutable submission creation time rather than webhook arrival or retry
+time. They follow the same contact mapping masks and target version preflight, and
+never manufacture `form_submitted_at` when the provider timestamp is unavailable.
+Missing ordering information cannot replace an existing HubSpot contact. Their
+success audit follows link persistence. All mapping writes use the transactional
+replacement API; the unused single-row repository writer was removed.
+
 ## Queue lifecycle and limits
 
 Verify before persistence; acknowledge only after durable encrypted insertion.

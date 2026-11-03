@@ -120,6 +120,16 @@ validation. Form ingestion creates missing attribution properties only and limit
 custom fields to 25 per submission. Wix form field IDs must correspond to the intended
 business fields; acceptance must verify the site's actual form schema.
 
+Form contact fields obey the pair's default/custom mapping masks and transformations.
+An explicitly disabled forward mapping configuration blocks form writes too. The
+immutable submission `createdDate` determines conflict order; delivery and processing
+time are never substituted. An existing newer/equal HubSpot contact, or an undated
+submission without a reliable ordering advantage, is skipped and audited. New contacts
+can omit unavailable submission time. Updates use a fresh target snapshot and the
+same final timestamp preflight as contact synchronization. Success is audited only
+after required contact-link persistence. The residual HubSpot final-PATCH race below
+also applies to Forms.
+
 ## Provider subscriptions
 
 Wix: `AppInstalled`, `AppRemoved`, `wix.contacts.v4.contact_created`,

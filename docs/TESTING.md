@@ -34,6 +34,12 @@ CI uploads them even on failure. Coverage goals remain 90% statements/branches f
 critical business logic and complete signature/retry branches. A passing test suite
 does not imply those targets were met; consult the actual dated validation record.
 
+The synchronization directory has an aggregate 90% gate for statements, branches,
+functions and lines, in addition to engine/Forms-specific and signature/retry gates.
+Forms tests cover delayed/undated events, disabled and partial mappings, contact-link
+failures, schema limits, array fields, attribution and audit ordering. A SQL workflow
+also verifies persisted custom mappings in both directions without losing defaults.
+
 Before production, run the multi-account matrix and concurrent worker crash/timeout
 cases in isolated Supabase, Wix and HubSpot development accounts. Verify configured
 callbacks, scopes, signed payloads, optional portal properties, token revocation,

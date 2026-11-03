@@ -4,14 +4,15 @@ Baseline: clean main at `2eb9470bf4eb183b2127f3ffc2092216e8837d91`.
 Development remote started at `44915574a37d2da75f0d61bd58d3d84951e9858d`.
 PR #1 was verified open and unmerged. Work uses `fix/webhook-retries`.
 Implementation commit: `43a8ddf`; test/CI commit: `8725875`.
+Forms conflict/mapping and audit follow-up: `ec91f93`.
 
 | Test | Result | Actual command and evidence |
 |---|---|---|
 | Typecheck | PASS | `npm.cmd run typecheck`, strict TypeScript |
 | Lint | PASS | `npm.cmd run lint`, no source warnings |
-| All Vitest tests | PASS | `npm.cmd run test:coverage`: 207 tests, 32 files, zero skipped |
+| All Vitest tests | PASS | `npm.cmd run test:coverage`: 233 tests, 32 files, zero skipped |
 | Unit tests | PASS | `npm.cmd run test:unit`: 58 tests, 11 files |
-| Integration tests | PASS | `npm.cmd run test:integration`; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
+| Integration tests | PASS | `npm.cmd run test:integration`: 113 tests, 9 files; signed ingress, encrypted SQL queue, real services and synthetic provider HTTP |
 | Contract tests | PASS | `npm.cmd run test:contract`: 14 tests, 3 files |
 | Security tests | PASS | `npm.cmd run test:security`: 58 tests, 10 files |
 | E2E browser tests | PASS | `npm.cmd run test:e2e`: 6 Chromium tests with synthetic API/provider responses |
@@ -28,15 +29,18 @@ Node 26.13.0; hosted CI targets Node 22. Generated reports are uploaded by CI.
 
 | Coverage scope | Statements | Branches | Lines |
 |---|---:|---:|---:|
-| All `src/lib` | 86.83% | 83.30% | 92.76% |
-| Synchronization directory | 88.15% | 84.29% | 93.26% |
+| All `src/lib` | 91.85% | 88.48% | 96.93% |
+| Synchronization directory | 95.67% | 91.94% | 99.20% |
 | Runtime engine | 100% | 93.54% | 100% |
+| Form synchronization | 100% | 98.02% | 100% |
 | Wix verifier | 100% | 100% | 100% |
 | HubSpot verifier | 100% | 100% | 100% |
 | Retry policy | 100% | 100% | 100% |
 
-Signature/retry 100% gates are enforced. Broader 90% critical branch targets remain
-unmet. Compatibility-model tests under `src/sync` are not runtime-engine coverage.
+Signature/retry 100% gates and the synchronization aggregate 90% gate are enforced.
+Synchronization and security exceed the requested 90% statement/branch targets.
+Whole-library branch coverage is 88.48%; provider/queue boundary gaps remain visible.
+Compatibility-model tests under `src/sync` are not runtime-engine coverage.
 
 Verification levels:
 

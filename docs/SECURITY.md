@@ -11,6 +11,7 @@
 | Null mappings could clear customer fields | P1 | Default merging and explicit `allowEmpty`; mapping regressions |
 | Disconnected installations could resume | P1 | Durable tombstones and transactional uninstall; lifecycle workflow tests |
 | Unbounded or repeated permanent failures | P1 | Bounded attempts, backoff, terminal state, stale recovery and rate-limit tests |
+| Delayed Forms could replace newer contact edits or bypass disabled mappings | P1 | Immutable provider timestamps, fresh target preflight, shared mapping masks and SQL-backed regression workflow |
 | Secret/PII exposure | P1 | Server-only Supabase client, authenticated encryption, metadata-only logs, no provider bodies in safe HTTP errors |
 | Public administrative mutations | P1 | Signed HttpOnly sessions or server API credential, same-origin cookie mutations, durable login limit |
 
@@ -33,8 +34,9 @@ was introduced. SQL claim/lease functions are restricted to trusted backend role
   preflight reduces stale writes but cannot eliminate edits racing the write.
 * P1: Apply and verify migrations, provider configuration and production scheduler in
   controlled staging. PGlite does not verify deployed Supabase/PostgREST behavior.
-* P2: Complete measured security/synchronization coverage targets, multi-process fault
-  injection, retention policies, key rotation, restore exercises and ingress throttling.
+* P2: Multi-process fault injection, retention policies, key rotation, restore exercises
+  and ingress throttling. Sync/security coverage targets are met; provider/queue
+  boundary coverage still has room to improve.
 
 Do not accept real customer data until release owners resolve the applicable P1 gates.
 No production penetration test, external security certification or live provider
