@@ -1,5 +1,14 @@
 # Wix ↔ HubSpot Contact Sync
 
+**Release status:** hardened locally; not yet approved for customer production data.
+See the [engineering audit](docs/ENGINEERING-AUDIT.md) for findings and remaining
+release blockers, the [verification record](docs/VALIDATION.md) for actual check results,
+and the [deployment runbook](docs/DEPLOYMENT.md) for migration,
+account pairing, verification and recovery instructions.
+
+Detailed references: [architecture](docs/ARCHITECTURE.md), [security](docs/SECURITY.md),
+[testing](docs/TESTING.md), and [HTTP API](docs/API.md).
+
 A self-managed Next.js integration that synchronizes Wix contacts and form submissions with HubSpot contacts. The project is designed for a technical assignment and prioritizes secure credentials, verified webhooks, idempotent processing, configurable mappings, conflict handling, and an auditable event queue.
 
 ## Current implementation
@@ -7,9 +16,11 @@ A self-managed Next.js integration that synchronizes Wix contacts and form submi
 - HubSpot OAuth authorization-code flow using the current 2026-03 token lifecycle API, plus 2026-03 CRM contact/property APIs, state validation, encrypted access/refresh token storage, and refresh-token revocation on disconnect.
 - HubSpot access-token refresh and contact create/update/search APIs.
 - Wix self-managed app instance-token generation and encrypted token caching.
-- Wix webhook JWT verification with the app's RSA public key.
+- Wix webhook JWT verification with the app's RSA public key, validated temporal claims and streaming body limits.
 - HubSpot v3 webhook signature verification.
-- Durable webhook event storage with encrypted payloads, deduplication, atomic claims, bounded retries, and stale-worker recovery.
+- Durable webhook event storage with encrypted payloads, account-aware deduplication, fenced claims, bounded retries, Retry-After support, and stale-worker recovery.
+- Durable creation intents reconcile uncertain provider writes and block another create while the previous outcome is unknown.
+- Explicit Wix–HubSpot account pairs, including shared sites and portals; workers fan out only over configured pairs and manual operations require an unambiguous pair.
 - Bidirectional contact sync with configurable field mappings, nested paths/arrays, transforms, timestamp conflict resolution, and reciprocal-event suppression.
 - Wix Forms submission ingestion with email/name/phone and UTM, landing-page, referrer, and submission-time attribution properties in HubSpot.
 - Password-protected admin dashboard for connections, mapping configuration, manual one-contact sync, and recent event monitoring.
@@ -23,17 +34,17 @@ The live integrations are not considered verified until real Wix and HubSpot cre
 - **Supabase Postgres** — encrypted provider connections, field mappings, Wix↔HubSpot contact links, encrypted webhook queue, and audit records. RLS is enabled and browser-facing table privileges are revoked; trusted server code uses the service-role key.
 - **HubSpot CRM API** — contacts and attribution properties.
 - **Wix Contacts API** — contact reads and writes for the installed app instance.
-- **Vitest** — unit tests for mapping and conflict logic.
+- **Vitest / PGlite** — provider, mapping, synchronization, OAuth, webhook and PostgreSQL migration/queue regression tests.
 
 This is a self-managed Wix app integration. Wix CLI is not required for the current architecture: Wix sends signed webhook JWTs to our Next.js endpoints, and our backend calls Wix APIs using the installed app instance ID. Wix CLI event extensions are relevant if we later choose to move the webhook handling into a Wix-managed app project.
 
 ## Local setup
 
-1. Install Node.js 22 or newer.
-2. Clone this repository and run `npm install`.
+1. Install Node.js 22.12 or newer (Node.js 22 is the CI target).
+2. Clone this repository and run `npm ci`.
 3. Copy `.env.example` to `.env.local`.
 4. Configure the environment variables below.
-5. Apply every SQL migration in `supabase/migrations` to your Supabase project. The linked project for this assignment already has all committed migrations applied, including the initial schema, encrypted webhook payloads, retry/lease handling, server-role-only table grants, and the mapping foreign-key index.
+5. Verify the intended Supabase project and its migration ledger, then apply reviewed SQL migrations to a development project first. The live project's migration state has not been independently verified in this checkout. New migrations are local and unapplied to any remote database.
 6. Run `npm run dev` and open `http://localhost:3000`.
 
 Never commit `.env.local`, OAuth credentials, encryption keys, webhook public keys with secrets (public keys are not secrets but should still be configured carefully), provider tokens, or real customer data.
@@ -71,18 +82,19 @@ Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_S
 1. Create a project-based app in the HubSpot Developer Platform (use Projects version 2026.09) and enable OAuth.
 2. Add the exact callback URL configured in `HUBSPOT_REDIRECT_URI`.
 3. Request `crm.objects.contacts.read`, `crm.objects.contacts.write`, `crm.schemas.contacts.read`, and `crm.schemas.contacts.write` for property discovery and form attribution fields.
-4. Add webhook subscriptions for contact creation and property changes, pointing to `/api/webhooks/hubspot`.
+4. Add webhook subscriptions for contact creation and every mapped property change, pointing to `/api/webhooks/hubspot`. Classic `contact.*` subscriptions and generic `object.*` events with contact `objectTypeId: "0-1"` are accepted. Configure project-based subscriptions in the HubSpot project's webhook configuration file.
 5. Configure the app client ID and secret in the server environment.
 6. Sign in to the dashboard and choose **Connect HubSpot**. Authorize the intended test portal.
 
 ### Wix
 
 1. Create a self-managed custom app in Wix Developer Center.
-2. Configure the Wix **Read Contacts** and **Manage Contacts** permissions, then subscribe to the App Instance Installed event, contact created/updated events, and the current Wix Forms submission event supported by your app. If you use the legacy Form Submitted event, also grant **Read Form Submissions**; Wix marks that legacy Forms API event as deprecated, so prefer the current Forms V2 event when available.
+2. Configure **Read Contacts**, **Manage Contacts**, and **Manage Your App** permissions. Subscribe to `AppInstalled`, `AppRemoved`, `wix.contacts.v4.contact_created`, and `wix.contacts.v4.contact_updated`. Optional forms ingestion supports `wix.forms.v4.submission_created` with **Read Submissions**; guessed/legacy form identifiers are not recognized.
 3. Set the webhook callback URL to `/api/webhooks/wix`.
 4. Copy the public key shown in the webhook setup sample or from App Dashboard → Home → View ID and Keys into `WIX_WEBHOOK_PUBLIC_KEY`.
 5. Configure the Wix App ID and App Secret server-side.
-6. Install the app on the test Wix site. The first verified Wix webhook automatically bootstraps the site connection; if you do not receive the install event, paste the app instance ID into the dashboard as a fallback.
+6. Install the app on the test Wix site. The worker bootstraps a missing connection from a persisted, verified supported event. Start the dispatcher, or use the dashboard's manual connection fallback. Explicit disconnects and uninstall tombstones are respected; reconnect manually after reinstalling.
+7. In **Account routing**, explicitly pair each Wix site with its intended HubSpot portal. Sync is blocked until a pair exists. Pairing never guesses a destination or changes an existing pair.
 
 The Wix webhook receiver verifies the signed JWT body with the app's public key before persisting any event. Do not disable this check.
 
