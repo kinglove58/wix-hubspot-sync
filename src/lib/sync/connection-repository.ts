@@ -1,17 +1,27 @@
 import "server-only";
 import { getSupabaseAdmin } from "@/lib/supabase/admin";
 
+async function assertPairOwnership(wix: { tenant_id?: string | null }, hubspot: { tenant_id?: string | null }) {
+  const tenantId = wix.tenant_id ?? null;
+  if (tenantId !== (hubspot.tenant_id ?? null)) throw new Error("Integration pair ownership is unresolved");
+  if (tenantId) {
+    const tenant = await getSupabaseAdmin().from("tenants").select("id").eq("id", tenantId).is("disabled_at", null).maybeSingle();
+    if (tenant.error || !tenant.data) throw new Error("Integration tenant is unavailable");
+  }
+}
+
 export async function resolveProviderConnections(instanceId: string, pairId?: string) {
   if (!instanceId.trim()) throw new Error("Wix instance ID is required");
   const db = getSupabaseAdmin();
-  const wix = await db.from("provider_connections").select("id,external_account_id").eq("provider", "wix").eq("external_account_id", instanceId).is("disconnected_at", null).maybeSingle();
+  const wix = await db.from("provider_connections").select("id,external_account_id,tenant_id").eq("provider", "wix").eq("external_account_id", instanceId).is("disconnected_at", null).maybeSingle();
   if (wix.error || !wix.data) throw new Error("Wix installation is not connected");
   let query = db.from("integration_pairs").select("id,hubspot_connection_id,use_default_mappings").eq("wix_connection_id", wix.data.id);
   if (pairId) query = query.eq("id", pairId);
   const pair = await query.maybeSingle();
   if (pair.error || !pair.data) throw new Error("Wix installation has no explicit HubSpot pairing");
-  const hubspot = await db.from("provider_connections").select("id,external_account_id").eq("provider", "hubspot").eq("id", pair.data.hubspot_connection_id).is("disconnected_at", null).maybeSingle();
+  const hubspot = await db.from("provider_connections").select("id,external_account_id,tenant_id").eq("provider", "hubspot").eq("id", pair.data.hubspot_connection_id).is("disconnected_at", null).maybeSingle();
   if (hubspot.error || !hubspot.data) throw new Error("HubSpot is not connected");
+  await assertPairOwnership(wix.data, hubspot.data);
   return { wix: wix.data, hubspot: hubspot.data, pairId: pair.data.id as string, useDefaultMappings: pair.data.use_default_mappings !== false };
 }
 
@@ -24,11 +34,12 @@ export async function listSyncTargets(provider: "wix" | "hubspot", accountId: st
     .eq(provider === "wix" ? "wix_connection_id" : "hubspot_connection_id", source.data.id);
   if (pairs.error || !pairs.data?.length) throw new Error("Source account has no explicit integration pairs");
   const ids = [...new Set(pairs.data.flatMap((p) => [p.wix_connection_id as string, p.hubspot_connection_id as string]))];
-  const active = await db.from("provider_connections").select("id,provider,external_account_id").in("id", ids).is("disconnected_at", null);
+  const active = await db.from("provider_connections").select("id,provider,external_account_id,tenant_id").in("id", ids).is("disconnected_at", null);
   if (active.error) throw new Error("Unable to resolve paired accounts");
   return pairs.data.flatMap((p) => {
     const wix = active.data?.find((c) => c.id === p.wix_connection_id && c.provider === "wix");
     const hubspot = active.data?.find((c) => c.id === p.hubspot_connection_id && c.provider === "hubspot");
+    if (wix && hubspot && (wix.tenant_id ?? null) !== (hubspot.tenant_id ?? null)) throw new Error("Integration pair ownership is unresolved");
     return wix?.external_account_id && hubspot ? [{ pairId: p.id as string, instanceId: wix.external_account_id as string }] : [];
   });
 }

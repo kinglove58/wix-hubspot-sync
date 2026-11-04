@@ -75,6 +75,7 @@ export async function persistVerifiedWebhookEvent(
 
   const { data, error } = await db.from("webhook_events").insert({
     provider: event.provider,
+    external_account_id: String(event.provider === "wix" ? event.payload.instanceId : event.payload.portalId),
     provider_event_id: event.eventId ?? null,
     event_type: event.eventType,
     correlation_id: event.correlationId ?? null,

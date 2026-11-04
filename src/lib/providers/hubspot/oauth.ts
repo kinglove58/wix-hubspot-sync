@@ -39,9 +39,9 @@ export function safeCompareState(expected: string, actual: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function buildHubSpotAuthorizationUrl(state: string): string {
+export function buildHubSpotAuthorizationUrl(state: string, redirectUriOverride?: string): string {
   const clientId = required(process.env.HUBSPOT_CLIENT_ID, "HUBSPOT_CLIENT_ID");
-  const redirectUri = required(process.env.HUBSPOT_REDIRECT_URI, "HUBSPOT_REDIRECT_URI");
+  const redirectUri = required(redirectUriOverride ?? process.env.HUBSPOT_REDIRECT_URI, "HUBSPOT_REDIRECT_URI");
   const scopes = (process.env.HUBSPOT_SCOPES ??
     "crm.objects.contacts.read crm.objects.contacts.write crm.schemas.contacts.read crm.schemas.contacts.write").trim();
 
@@ -53,10 +53,10 @@ export function buildHubSpotAuthorizationUrl(state: string): string {
   return url.toString();
 }
 
-export async function exchangeHubSpotCode(code: string): Promise<void> {
+export async function requestHubSpotAuthorizationToken(code: string, redirectUriOverride?: string) {
   const clientId = required(process.env.HUBSPOT_CLIENT_ID, "HUBSPOT_CLIENT_ID");
   const clientSecret = required(process.env.HUBSPOT_CLIENT_SECRET, "HUBSPOT_CLIENT_SECRET");
-  const redirectUri = required(process.env.HUBSPOT_REDIRECT_URI, "HUBSPOT_REDIRECT_URI");
+  const redirectUri = required(redirectUriOverride ?? process.env.HUBSPOT_REDIRECT_URI, "HUBSPOT_REDIRECT_URI");
 
   const body = new URLSearchParams({
     grant_type: "authorization_code",
@@ -82,6 +82,11 @@ export async function exchangeHubSpotCode(code: string): Promise<void> {
   if (!token.access_token || !token.refresh_token || !token.hub_id || !token.expires_in) {
     throw new Error("HubSpot returned an incomplete OAuth token response");
   }
+  return { ...token, refresh_token: token.refresh_token, hub_id: token.hub_id };
+}
+
+export async function exchangeHubSpotCode(code: string): Promise<void> {
+  const token = await requestHubSpotAuthorizationToken(code);
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("provider_connections").upsert(

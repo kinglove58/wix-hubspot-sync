@@ -11,10 +11,10 @@ export function getSupabaseAdmin(): SupabaseClient {
   if (adminClient) return adminClient;
 
   const url = process.env.SUPABASE_URL?.trim();
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const serviceRoleKey = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!url || !serviceRoleKey) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+    throw new Error("SUPABASE_URL and a server-only Supabase secret key are required");
   }
 
   adminClient = createClient(url, serviceRoleKey, {
