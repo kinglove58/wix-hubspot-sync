@@ -54,6 +54,7 @@ export default function IntegrationDashboard({ customer }: { customer?: Customer
   const [wixFieldOptions, setWixFieldOptions] = useState<FieldOption[]>([]);
   const [hubspotPropertyOptions, setHubspotPropertyOptions] = useState<FieldOption[]>([]);
   const [notice, setNotice] = useState("");
+  const [fieldNotice, setFieldNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [selectedWix, setSelectedWix] = useState("");
   const [selectedHubSpot, setSelectedHubSpot] = useState("");
@@ -89,12 +90,14 @@ export default function IntegrationDashboard({ customer }: { customer?: Customer
   useEffect(() => {
     let active = true;
     setHubspotPropertyOptions([]);
-    if (authenticated) integrationRequest(`/fields?connectionId=${encodeURIComponent(selectedPair?.hubspot_connection_id ?? selectedHubSpot)}`)
+    setFieldNotice("");
+    const connectionId = selectedPair?.hubspot_connection_id ?? selectedHubSpot;
+    if (authenticated && connectionId) integrationRequest(`/fields?connectionId=${encodeURIComponent(connectionId)}`)
       .then(async (response) => {
         if (!response.ok) throw new Error("Unable to discover provider fields");
         const fields = await response.json() as { wixFields: FieldOption[]; hubspotProperties: FieldOption[] };
         if (active) { setWixFieldOptions(fields.wixFields); setHubspotPropertyOptions(fields.hubspotProperties); }
-      }).catch(() => { if (active) setNotice("Unable to discover provider fields."); });
+      }).catch(() => { if (active) setFieldNotice("Unable to discover provider fields."); });
     return () => { active = false; };
   }, [authenticated, selectedHubSpot, selectedPair?.hubspot_connection_id, integrationRequest]);
 
@@ -242,6 +245,7 @@ export default function IntegrationDashboard({ customer }: { customer?: Customer
         <button className="button-quiet" onClick={logout}>Sign out</button>
       </header>
       {notice && <div className="notice" role="status">{notice}</div>}
+      {fieldNotice && <div className="notice" role="status">{fieldNotice}</div>}
       <datalist id="wix-field-options">{wixFieldOptions.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}</datalist>
       <datalist id="hubspot-property-options">{hubspotPropertyOptions.map((field) => <option key={field.value} value={field.value}>{field.label}</option>)}</datalist>
 
@@ -300,7 +304,7 @@ export default function IntegrationDashboard({ customer }: { customer?: Customer
             </div>
           ))}
         </fieldset>
-        <div className="actions"><button disabled={readOnly || busy || !selectedPair} onClick={saveMappings}>{busy ? "Saving…" : "Save mappings"}</button><span className="muted small">{readOnly ? "Your role allows viewing only." : "Both providers must be connected before saving."}</span></div>
+        <div className="actions"><button disabled={readOnly || busy || !selectedPair} onClick={saveMappings}>{busy ? "Saving…" : "Save mappings"}</button><span className="muted small">{readOnly ? "Your role allows viewing only." : !selectedPair ? "Pair both providers before saving." : "Mappings apply to the selected account pair."}</span></div>
       </section>
 
       <section className="panel">
