@@ -24,6 +24,7 @@ export default defineConfig({
         "src/lib/sync/engine.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
         "src/lib/sync/form-submission.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
         "src/lib/sync/**/*.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
+        "src/lib/security/**/*.ts": { statements: 90, branches: 90, functions: 90, lines: 90 },
       },
     },
   },

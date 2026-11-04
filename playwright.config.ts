@@ -9,5 +9,7 @@ export default defineConfig({
   reporter: [["list"], ["html", { open: "never" }]],
   use: { baseURL: "http://127.0.0.1:3210", headless: true, trace: "retain-on-failure", screenshot: "only-on-failure" },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
-  webServer: { command: "npm run start -- --hostname 127.0.0.1 --port 3210", url: "http://127.0.0.1:3210/api/health", reuseExistingServer: false, timeout: 60_000 },
+  webServer: { command: "npm run start -- --hostname 127.0.0.1 --port 3210", url: "http://127.0.0.1:3210/api/health", reuseExistingServer: false, timeout: 60_000,
+    env: { CUSTOMER_ACCESS_ENABLED: "true", SUPABASE_URL: "https://auth.example.invalid", NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_synthetic_customer_browser_key" },
+  },
 });

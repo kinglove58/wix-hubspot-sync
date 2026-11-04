@@ -44,11 +44,14 @@ try {
     ["/api/sync/run", "POST", [401]],
     ["/api/connections/pair", "POST", [401]],
     ["/api/worker/dispatch", "POST", [401, 503]],
+    ["/api/customer/tenants", "GET", [401, 503]],
+    ["/api/customer/overview", "GET", [401, 503]],
   ];
   for (const [path, method, statuses] of checks) {
     const response = await fetch(`${base}${path}`, { method, signal: AbortSignal.timeout(5000) });
     if (!statuses.includes(response.status)) throw new Error(`${method} ${path}: unexpected status ${response.status}`);
     if (!response.headers.get("cache-control")?.includes("no-store")) throw new Error(`${path}: missing no-store header`);
+    if (response.headers.get("x-frame-options") !== "DENY" || !response.headers.get("content-security-policy")?.includes("frame-ancestors 'none'")) throw new Error(`${path}: missing framing protection`);
     if (path === "/api/admin/session" && (await response.json()).authenticated !== false) throw new Error("Anonymous session unexpectedly authenticated");
     console.log(`${method} ${path}: ${response.status}`);
   }

@@ -21,9 +21,9 @@
     "test:coverage": "vitest run --coverage",
     "test:contract": "vitest run tests/wix-contacts.test.ts tests/hubspot-client.test.ts tests/event-types.test.ts",
     "test:e2e": "playwright test",
-    "test:integration": "vitest run tests/database.test.ts tests/sync-engine.test.ts tests/connection-routing.test.ts tests/form-submission.test.ts tests/creation-intent.test.ts tests/webhook-event-store.test.ts tests/full-workflow.test.ts tests/lease.test.ts tests/oauth-lifecycle.test.ts",
+    "test:integration": "vitest run tests/database.test.ts tests/sync-engine.test.ts tests/connection-routing.test.ts tests/form-submission.test.ts tests/creation-intent.test.ts tests/webhook-event-store.test.ts tests/full-workflow.test.ts tests/lease.test.ts tests/oauth-lifecycle.test.ts tests/customer-tenancy.test.ts",
     "test:unit": "vitest run tests/mapping.test.ts tests/nested-mapping.test.ts tests/provider-mapping.test.ts tests/contact-mapping.test.ts tests/conflict.test.ts tests/echo-guard.test.ts tests/retry-policy.test.ts src/sync tests/sync-echo-guard.test.ts tests/wix-contact-normalize.test.ts",
-    "test:security": "vitest run tests/admin-auth.test.ts tests/oauth-callback.test.ts tests/webhook-routes.test.ts tests/wix-signature.test.ts tests/hubspot-signature.test.ts tests/token-crypto.test.ts tests/request-body.test.ts tests/worker-route.test.ts tests/oauth-lifecycle.test.ts tests/wix-webhook-signature.test.ts"
+    "test:security": "vitest run tests/admin-auth.test.ts tests/oauth-callback.test.ts tests/webhook-routes.test.ts tests/wix-signature.test.ts tests/hubspot-signature.test.ts tests/token-crypto.test.ts tests/request-body.test.ts tests/worker-route.test.ts tests/oauth-lifecycle.test.ts tests/wix-webhook-signature.test.ts tests/customer-tenancy.test.ts tests/customer-config.test.ts tests/wix-customer-proof.test.ts tests/customer-failures.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.0",
