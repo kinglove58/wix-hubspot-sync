@@ -43,25 +43,36 @@ The existing development history is merged without force-pushing. Earlier regres
 tests are retained and adapted to the current contract; duplicate historical migration
 filenames use the canonical versions already present on main.
 
+## Live isolated staging verification
+
+Both approved QA installations are connected and explicitly paired. Real provider
+assertions pass for contact creation and update in both directions, email changes
+with stable IDs, and repeat-sync single links. Actual Wix AppInstalled and contact
+webhooks processed successfully. HubSpot cloud build/deployment #2 activated 14
+subscriptions; actual signed object.creation and object.propertyChange deliveries
+persisted and produced linked Wix contacts through the deployed worker. Subsequent
+Wix echo processing was ignored, with no failed worker attempts in these batches.
+A Wix-generated account-owner contact also synchronized inside QA; manual assertions
+used separate synthetic example.com records. The original vendor sample's terminal
+404 is retained for audit. Final readiness: one pair, zero retryable events.
+
+The isolated Supabase project has 20 migration entries, 13 RLS-enabled tables,
+no browser-role table grants, and successful SQL/27 REST checks. Separate Vercel
+staging runs Node22/Fluid/fra1. Source commit 2b1656b passes hosted CI and deployment;
+local Node22 build, typecheck, targeted lint and 12 browser regressions also pass.
+Dashboard metadata lookup now waits for a selected portal and its error no longer
+obscures operation feedback. Connected mappings display the correct account-pair hint.
+
 ## Release status: NOT READY for production
 
-Real Wix/HubSpot contact acceptance and production scheduler execution remain
-unverified. Supabase staging has 20 migration ledger entries, 13 RLS-enabled tables
-and zero anon/authenticated table read grants. Multi-session contention remains
-unverified. Follow-up live checks now also pass for 27 read-only Auth/PostgREST
-assertions and the application's Supabase adapter. A separate Vercel staging project
-tracks this branch with baseline secrets configured. Its first HTTPS deployment passed
-health, protected readiness/DB and authenticated empty-worker checks. Build logs exposed
-an open-ended Node engine override; the candidate now bounds Node to 22 and passes a
-local build/typecheck on Node22.23.4. Deployment `2grTH9b4sU7Ws52neqCQJMUu6ZVG`
-confirms Node22.x/Fluid/fra1 and twelve deployed security checks pass. Wix's signed
-sample persisted encrypted and terminated on Wix404 for its sample instance;
-this is not a successful contact sync. Four Wix draft callbacks are registered.
-The private HubSpot staging project passed cloud build and deployment #1; all contact
-subscriptions remain inactive. Customer mode requires staging Auth/ownership/consent
-acceptance before activation. HubSpot's final GET/PATCH cannot atomically fence an external user edit.
-Wix reinstall/site-transfer and delayed first uninstall ordering also require acceptance.
-Live multi-process/load fault injection and provider/queue boundary coverage remain open.
+Continuous staging scheduling is approved and prepared in
+scripts/staging-scheduler.sql but not applied: the Obafemi browser connection must
+be restored to configure its Vault secret and verify consecutive actual HTTP runs.
+Production is excluded. Multi-account real acceptance, revocation/reinstall,
+site transfer, live fault/load tests, customer-mode Auth/ownership/consent acceptance,
+and alert delivery remain outstanding. Customer access stays disabled. HubSpot's
+final GET/PATCH cannot atomically fence an external user edit; delayed first-uninstall
+ordering after reconnect also requires acceptance. No production release or merge.
 
-See `docs/ENGINEERING-REPORT.md`, `docs/VALIDATION.md`, `docs/SECURITY.md` and
-`docs/DEPLOYMENT.md` for evidence, remaining owners and exact configuration actions.
+See docs/ENGINEERING-REPORT.md, docs/VALIDATION.md, docs/SECURITY.md and
+docs/DEPLOYMENT.md for evidence, remaining owners and configuration actions.

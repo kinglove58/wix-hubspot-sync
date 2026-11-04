@@ -305,3 +305,23 @@ Release blockers still requiring acceptance/design work:
   alerts and production load remain unverified in this environment.
 
 Keep the queue paused and customer traffic disabled until the relevant gates pass.
+
+### Optional isolated staging scheduler (not yet applied)
+
+`scripts/staging-scheduler.sql` prepares a named one-minute Supabase Cron job for
+this staging project only. It sends an authenticated POST to the deployed worker,
+using the existing `CRON_SECRET` stored under a named Supabase Vault entry rather
+than putting the value into cron SQL. Enabling the extensions and storing this
+secret require approval for that destination. No production job is configured.
+
+The script denies browser roles access to Vault and pg_net because outgoing
+requests temporarily contain decrypted authorization headers. Database owners
+remain trusted. Verify multiple actual HTTP responses and worker result counts;
+pg_cron success alone proves only enqueueing. A 207 response requires investigation.
+The job can overlap a long dispatch; atomic event claims still fence processing.
+Inspect workload/hosting limits before increasing cadence or batch size.
+
+Official reference: [Supabase scheduling and Vault](https://supabase.com/docs/guides/functions/schedule-functions).
+This operational script has not been applied or live-tested. Keep the existing
+GitHub scheduler disabled while another dispatcher is active. Alert delivery still
+needs an explicitly selected operator destination and must be tested separately.

@@ -1,8 +1,9 @@
 # Acceptance matrix
 
-All evidence below is local automated verification with synthetic provider HTTP or
-isolated PostgreSQL. **Every live-provider/staging acceptance row remains pending.**
-This table does not convert test coverage into production certification.
+The table records the original automated baseline. Real isolated QA acceptance
+has since verified both contact-sync directions, updates, changed email, stable
+links and Wix webhook processing; see the live progress section below and
+VALIDATION.md. Remaining live cases are still required for production sign-off.
 
 | Required scenario | Automated evidence | Remaining acceptance |
 |---|---|---|
@@ -33,3 +34,19 @@ This table does not convert test coverage into production certification.
 
 Before production, retain sanitized request/event IDs and observed outcomes, verify
 backups/restores and retention rules, and resolve the P1 gates in `ENGINEERING-REPORT.md`.
+
+## Live QA progress — 2026-11-04
+
+Real isolated Wix and HubSpot QA connections and their explicit pair are now
+established. Both create directions, both update directions, changed email with
+stable identity, repeat-sync single links, actual Wix lifecycle delivery and actual
+Wix contact-webhook processing passed. See VALIDATION.md for evidence and limits.
+The table above records the earlier baseline; these rows are no longer entirely
+pending. Multi-account real acceptance, revocation, outage/rate-limit tests,
+HubSpot-origin webhook acceptance and continuous scheduling still require evidence.
+
+Both real HubSpot-origin creation and property-change webhook workflows now pass,
+including retrieval of the resulting Wix contact and asserted mapped field. A final
+Wix echo was ignored and the retryable queue was empty. Continuous scheduling remains
+approved but unapplied; see VALIDATION.md. Real multi-account and lifecycle cases
+in the original table are still pending.

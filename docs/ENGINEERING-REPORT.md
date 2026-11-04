@@ -165,3 +165,24 @@ fully atomic cross-provider last-write-wins or an active production scheduler is
    matrix with synthetic test contacts, and inject retries/crashes/revoke/uninstall/
    conflicts. Retain sanitized evidence, resolve P1 decisions and obtain separate
    approval before production. Do not send credentials or contact payloads in chat.
+
+## 2026-11-04 live QA follow-up
+
+Approved isolated provider installations are complete. HubSpot QA OAuth, Wix signed
+AppInstalled processing, explicit account pairing, provider property discovery,
+bidirectional synthetic contact creation/update, changed email, stable linked IDs,
+and repeat-sync duplicate-link prevention were verified against real APIs through
+the deployed staging application. Actual Wix contact-webhook batches processed
+successfully, including one ignored echo/no-applicable-write. See VALIDATION.md.
+Production readiness remains NOT READY: real multi-account/revocation acceptance,
+HubSpot-origin webhook delivery, continuous scheduler/alerts and the documented
+HubSpot final-GET/PATCH edit race remain outstanding. No production release or merge.
+
+Latest real QA result: HubSpot's actual signed object.creation and
+object.propertyChange deliveries now both pass end to end through persistence and
+the deployed worker into Wix. Final readiness shows one pair and zero retryable
+events. Local Node22 build, typecheck, targeted lint and all 12 browser regressions
+pass; source commit 2b1656b passes hosted CI and Vercel deployment. Thus HubSpot-origin
+delivery is resolved; continuous scheduling/alerts and the remaining real lifecycle,
+multi-account and conflict-race acceptance are still production gates. Scheduling
+approval is recorded; setup is blocked on Obafemi browser reconnection.

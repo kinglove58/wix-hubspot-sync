@@ -163,3 +163,82 @@ was prepared but not selected. Provider installation approval remains outstandin
 Hosted CI passed for `515693a`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118
 Later documentation/check-script changes require their own hosted result.
+
+## Real QA provider acceptance — 2026-11-04 evening
+
+The user approved both isolated installations. The real operator OAuth callback
+connected HubSpot QA portal `149697146`; the parent portal was not installed.
+Created an unpublished blank Wix Editor development site, **Wix HubSpot Sync QA**
+(site `8c069c36-31fd-4325-9cea-3a1e5851b70f`), and installed the draft app there.
+Its actual signed `AppInstalled` event succeeded through the deployed worker and
+created installation `04ffe45c-f4bf-4999-aadb-90120b49e18a`. The dashboard saved an
+explicit pair between these two QA connections. No live customer site was selected.
+
+Actual deployed API/provider assertions passed:
+
+- HubSpot property discovery HTTP 200.
+- Synthetic Wix contact creation, application Wix-to-HubSpot sync HTTP 200,
+  followed by a real HubSpot GET asserting the mapped first and last names.
+- Repeat forward sync preserved exactly one persistent link.
+- HubSpot last-name and email change synchronized to the same Wix contact ID;
+  the real Wix GET confirmed both changed fields.
+- A Wix last-name update synchronized to the same HubSpot contact ID.
+- A separately created synthetic HubSpot contact synchronized into Wix; a real
+  Wix GET confirmed its last name. Repeating reverse sync retained one link.
+- Actual Wix contact webhooks reached encrypted event persistence. Worker batches
+  returned 200: first 5 succeeded, then 1 succeeded and 1 ignored as an echo/no
+  applicable write, with zero failures in those batches.
+
+Two events received during installation before explicit pairing initially failed
+closed with `EVENT_PROCESSING_FAILED`. Their later processing succeeded after the
+pair was established. The original vendor sample's terminal `WIX_HTTP_404` remains
+in audit history. No event status was manually rewritten.
+
+These are **real staging provider tests**, distinct from mocked Vitest/browser
+coverage. They do not certify live revocation, multiple real accounts, outage/rate
+limits, conflict races, or uninterrupted scheduled operation. HubSpot subscriptions
+and continuous scheduling must be separately verified before submission as an
+unattended integration. Synthetic contacts remain in QA for inspection.
+
+Follow-up: HubSpot cloud build #2 passed and deployment #2 succeeded; all fourteen
+staging subscriptions are active in the deployed configuration. Actual vendor
+webhook delivery remains a separate acceptance check. The QA development site's
+Wix-generated owner-profile contact also synchronized inside the QA pair; the
+manual assertions above used separately created synthetic example.com records.
+The user approved the additional Supabase staging Vault destination and prepared
+one-minute schedule. Browser connection dropped before setup, so no Vault entry,
+extension or scheduler job has yet been created by this follow-up.
+
+HubSpot live ingress follow-up: cloud build/deployment #2 activated all 14
+subscriptions. A creation immediately after activation produced no persisted event
+within the first polling window; it was not marked successful. A subsequent real
+API property update produced `object.propertyChange`, verified and persisted by
+the endpoint, then a deployed worker returned 200 with one success. Its linked Wix
+contact was retrieved and its expected last name asserted. This is actual
+HubSpot-origin signed ingress, not an operator-forged fixture. A fresh post-activation
+creation check is recorded separately when complete.
+
+Dashboard follow-up commit `2b1656b` skips field discovery without a selected portal,
+separates its transient error from operation notices, and corrects the paired mapping
+hint. Actual Node22 typecheck and targeted lint passed. Hosted validate CI passed:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41887158011
+Vercel deployment `7dKUKgLsRrsn5of8z1zWq8QJyUqm` succeeded. A clean local Node22
+production build also passed. An earlier local build failed collecting route data;
+a generated-cache archive temporarily included by TypeScript caused a second local
+failure. Moving that generated archive outside the source tree resolved it. No
+source route or security check was removed or disabled.
+
+Final live check: a fresh post-activation synthetic HubSpot creation produced
+`object.creation`, persisted pending, then a worker batch returned 200 with four
+successes and one ignored event. The resulting Wix contact's expected name was
+asserted by a real GET. A final Wix echo event was ignored by another worker run.
+Readiness returned 200, database reachable, one configured pair, zero retryable
+events and the one intentionally retained exhausted vendor sample. Both HubSpot
+creation and property-change signed ingress are now verified. The first immediate
+post-deployment creation timeout remains recorded honestly above.
+
+The local Node22 browser regression rerun completed: **12 passed, zero skipped,
+1.7 minutes**, using mocked customer/provider HTTP. This is separate from the real
+QA API/webhook checks. Continuous staging scheduling is approved but still not
+applied because Obafemi is unavailable. Its native fallback also returned the wrong
+window screenshot, so no coordinate input was attempted. No production changes.
