@@ -37,7 +37,7 @@ This does not guess occurrence order for first-delayed uninstall delivery after 
   95.52% / 91.85%, with an enforced aggregate 90% gate; security is 98.95% / 98.15%.
 - 12 Chromium acceptance tests pass with mocked Auth/application/provider APIs.
 - Production build and 9 production HTTP smoke checks pass.
-- All 20 migrations apply to isolated PGlite databases; production dependency audit: 0 vulnerabilities.
+- All 20 migrations apply to isolated PGlite and the authorized Supabase staging project. Live SQL smoke checks pass for RLS/grants, privileged RPCs, tenant-pair rejection and queue recovery/exhaustion; synthetic rows rolled back. Production dependency audit: 0 vulnerabilities.
 
 The existing development history is merged without force-pushing. Earlier regression
 tests are retained and adapted to the current contract; duplicate historical migration
@@ -45,8 +45,10 @@ filenames use the canonical versions already present on main.
 
 ## Release status: NOT READY for production
 
-No real provider acceptance, remote Supabase migration, deployment or production
-scheduler execution is claimed. Customer mode requires staging Auth/ownership/consent
+Real Wix/HubSpot acceptance, deployment and production scheduler execution remain
+unverified. Supabase staging has 20 migration ledger entries, 13 RLS-enabled tables
+and zero anon/authenticated table read grants. PostgREST and multi-session contention
+remain unverified. Customer mode requires staging Auth/ownership/consent
 acceptance before activation. HubSpot's final GET/PATCH cannot atomically fence an external user edit.
 Wix reinstall/site-transfer and delayed first uninstall ordering also require acceptance.
 Live multi-process/load fault injection and provider/queue boundary coverage remain open.
