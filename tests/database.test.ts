@@ -122,6 +122,47 @@ describe("PostgreSQL migrations and queue", () => {
       .toEqual([{ disconnected_at: null, encrypted_access_token: "new-token" }]);
   });
 
+  it("blocks activation and refresh until a persisted uninstall finishes, scoped to the affected site", async () => {
+    await db.exec("insert into public.provider_connections(provider,external_account_id,encrypted_access_token) values ('wix','site','old-token'),('wix','other-site','other-token');");
+    const id = (await db.query<{ id: string }>("insert into public.webhook_events(provider,event_type,idempotency_key,external_account_id) values ('wix','AppRemoved','pending-removal','site') returning id")).rows[0].id;
+    for (const status of ['pending','processing','failed']) {
+      await db.query("update public.webhook_events set status=$1 where id=$2",[status,id]);
+      expect((await db.query<{ pending: boolean }>("select public.wix_removal_is_pending('site') pending")).rows[0].pending).toBe(true);
+      await expect(db.exec("update public.provider_connections set encrypted_access_token='replacement' where external_account_id='site'")).rejects.toThrow(/Pending Wix removal/);
+    }
+    expect((await db.query<{ pending: boolean }>("select public.wix_removal_is_pending('other-site') pending")).rows[0].pending).toBe(false);
+    await db.exec("update public.provider_connections set encrypted_access_token='other-refreshed' where external_account_id='other-site'");
+    await db.query("select public.apply_wix_removal($1,'site')",[id]);
+    expect((await db.query<{ pending: boolean }>("select public.wix_removal_is_pending('site') pending")).rows[0].pending).toBe(false);
+    await db.exec("update public.provider_connections set disconnected_at=null,encrypted_access_token='reconnected' where external_account_id='site'");
+    await db.query("select public.apply_wix_removal($1,'site')",[id]);
+    expect((await db.query("select disconnected_at,encrypted_access_token from public.provider_connections where external_account_id='site'")).rows).toEqual([{ disconnected_at: null, encrypted_access_token: 'reconnected' }]);
+  });
+
+  it("fails closed for legacy unscoped removals and blocks bootstrap without affecting removal completion", async () => {
+    const id = (await db.query<{ id: string }>("insert into public.webhook_events(provider,event_type,idempotency_key) values ('wix','AppRemoved','legacy-removal') returning id")).rows[0].id;
+    await expect(db.exec("insert into public.provider_connections(provider,external_account_id,encrypted_access_token) values ('wix','new-site','token')")).rejects.toThrow(/Pending Wix removal/);
+    await db.query("select public.apply_wix_removal($1,'removed-site')",[id]);
+    await db.exec("insert into public.provider_connections(provider,external_account_id,encrypted_access_token) values ('wix','new-site','token')");
+    await db.exec("set role authenticated");
+    try { await expect(db.query("select public.wix_removal_is_pending('new-site')")).rejects.toThrow(/permission denied/); }
+    finally { await db.exec("reset role"); }
+  });
+
+  it("binds a persisted removal to its verified account before changing another site's credentials", async () => {
+    await db.exec("insert into public.provider_connections(provider,external_account_id,encrypted_access_token) values ('wix','unrelated-site','preserve-token')");
+    const id = (await db.query<{ id: string }>("insert into public.webhook_events(provider,event_type,idempotency_key,external_account_id) values ('wix','AppRemoved','scoped-removal','removed-site') returning id")).rows[0].id;
+    await expect(db.query("select public.apply_wix_removal($1,'unrelated-site')",[id])).rejects.toThrow(/identity mismatch/);
+    expect((await db.query("select disconnected_at,encrypted_access_token from public.provider_connections where external_account_id='unrelated-site'")).rows).toEqual([{ disconnected_at: null, encrypted_access_token: 'preserve-token' }]);
+    expect((await db.query("select status from public.webhook_events where id=$1",[id])).rows).toEqual([{ status: 'pending' }]);
+    await db.query("select public.apply_wix_removal($1,'removed-site')",[id]);
+    expect((await db.query("select status from public.webhook_events where id=$1",[id])).rows).toEqual([{ status: 'succeeded' }]);
+    await db.query("update public.webhook_events set status='ignored' where id=$1",[id]);
+    await db.exec("update public.provider_connections set disconnected_at=null,encrypted_access_token='reconnected' where external_account_id='removed-site'");
+    await db.query("select public.apply_wix_removal($1,'removed-site')",[id]);
+    expect((await db.query("select disconnected_at,encrypted_access_token from public.provider_connections where external_account_id='removed-site'")).rows).toEqual([{ disconnected_at: null, encrypted_access_token: 'reconnected' }]);
+  });
+
   it("uniquely reserves a creation and refuses changing its remembered destination", async () => {
     const rows = (await db.query<{ id: string; provider: string }>("insert into public.provider_connections(provider,external_account_id) values ('wix','site'),('hubspot','portal') returning id,provider")).rows;
     const wix = rows.find((row) => row.provider === "wix")!.id;

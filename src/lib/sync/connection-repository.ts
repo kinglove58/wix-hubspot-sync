@@ -15,6 +15,8 @@ export async function resolveProviderConnections(instanceId: string, pairId?: st
   const db = getSupabaseAdmin();
   const wix = await db.from("provider_connections").select("id,external_account_id,tenant_id").eq("provider", "wix").eq("external_account_id", instanceId).is("disconnected_at", null).maybeSingle();
   if (wix.error || !wix.data) throw new Error("Wix installation is not connected");
+  const removal = await db.rpc("wix_removal_is_pending", { p_instance_id: instanceId });
+  if (removal.error || removal.data !== false) throw new Error("Wix installation lifecycle is unresolved");
   let query = db.from("integration_pairs").select("id,hubspot_connection_id,use_default_mappings").eq("wix_connection_id", wix.data.id);
   if (pairId) query = query.eq("id", pairId);
   const pair = await query.maybeSingle();

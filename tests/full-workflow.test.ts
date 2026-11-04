@@ -10,6 +10,7 @@ import { encryptToken } from "../src/lib/security/token-crypto";
 import { POST as wixReceiver } from "../src/app/api/webhooks/wix/route";
 import { POST as hubspotReceiver } from "../src/app/api/webhooks/hubspot/route";
 import { processWebhookEvent } from "../src/lib/webhooks/processor";
+import { persistVerifiedWebhookEvent } from "../src/lib/webhooks/event-store";
 
 describe("signed webhook → PostgreSQL → worker → mocked provider workflows", () => {
   let pg: PGlite;
@@ -69,6 +70,24 @@ describe("signed webhook → PostgreSQL → worker → mocked provider workflows
     expect(providers.hubspot.get("100")!.size).toBe(1);
     expect(providers.hubspot.get("100")!.get(link.hubspot_contact_id)?.properties?.email).toBe("changed@example.invalid");
     expect((await pg.query("select * from public.sync_audit_logs where outcome='succeeded'")).rows).toHaveLength(2);
+  });
+
+  it("blocks both sync directions after durable removal persistence and permits reconnect only after removal completes", async () => {
+    await pair(await connect("wix", "site-a"), await connect("hubspot", "100"));
+    providers.addWix("site-a"); providers.addHubSpot("100", "source", "independent@example.invalid");
+    // Model a receiver crash after verified persistence but before lifecycle apply.
+    const removal = await persistVerifiedWebhookEvent({ provider: "wix", eventId: "removal-before-crash", eventType: "AppRemoved", payload: { instanceId: "site-a" } });
+    await wixEvent("site-a"); const wixChange = await newest();
+    await expect(processWebhookEvent(wixChange)).rejects.toThrow();
+    await hubspotEvent("100", "source"); await expect(processWebhookEvent(await newest())).rejects.toThrow();
+    expect(providers.writes).toHaveLength(0);
+    await expect(pg.query("update public.provider_connections set encrypted_access_token=$1 where provider='wix'",[encryptToken("wix:site-a")])).rejects.toThrow(/Pending Wix removal/);
+    expect(await processWebhookEvent(removal.id)).toBe("succeeded");
+    await pg.query("update public.provider_connections set disconnected_at=null,encrypted_access_token=$1,token_expires_at=now()+interval '1 hour' where provider='wix'",[encryptToken("wix:site-a")]);
+    expect(await processWebhookEvent(removal.id)).toBe("ignored");
+    await pg.query("update public.webhook_events set next_attempt_at=now()-interval '1 second' where id=$1",[wixChange]);
+    expect(await processWebhookEvent(wixChange)).toBe("succeeded");
+    expect(providers.writes).toHaveLength(1);
   });
 
   it("creates Wix contacts from HubSpot and suppresses the reciprocal provider timestamp echo", async () => {
