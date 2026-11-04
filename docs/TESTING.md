@@ -49,6 +49,12 @@ Forms tests cover delayed/undated events, disabled and partial mappings, contact
 failures, schema limits, array fields, attribution and audit ordering. A SQL workflow
 also verifies persisted custom mappings in both directions without losing defaults.
 
+Removal-barrier regressions cover pending, processing and failed uninstall states,
+site isolation, legacy account metadata, bootstrap/refresh/reconnect rejection and
+restricted SQL execution. A SQL-backed workflow simulates a receiver crash after
+verified persistence, blocks both sync directions, then completes removal and safely
+reconnects without letting the completed event disable the new credentials.
+
 Before production, run the multi-account matrix and concurrent worker crash/timeout
 cases in isolated Supabase, Wix and HubSpot development accounts. Verify configured
 callbacks, scopes, signed payloads, optional portal properties, token revocation,

@@ -22,17 +22,22 @@ consent with independent private browser nonce and fresh user/membership verific
 Customer access is disabled by default pending real staging acceptance. The root
 operator console remains privileged and separate.
 
+A durable pending-removal barrier now blocks Wix credential activation and both
+sync directions until a persisted uninstall finishes. SQL and crash-recovery workflow
+tests cover bootstrap, refresh, reconnect, site scope and legacy unscoped removals.
+This does not guess occurrence order for first-delayed uninstall delivery after reconnect.
+
 ## Validation
 
 - Strict typecheck and ESLint pass.
-- 270 Vitest tests across 36 files pass, including SQL-backed signed webhook workflows,
+- 275 Vitest tests across 36 files pass, including SQL-backed signed webhook workflows,
   tenancy/onboarding and OAuth lifecycle tests with synthetic provider/Auth HTTP.
 - Both signature verifiers and retry policy have 100% statement/branch coverage gates.
-- Overall measured coverage: 92.40% statements / 89.31% branches. Synchronization is
-  95.50% / 91.80%, with an enforced aggregate 90% gate; security is 98.95% / 98.15%.
+- Overall measured coverage: 92.63% statements / 89.83% branches. Synchronization is
+  95.52% / 91.85%, with an enforced aggregate 90% gate; security is 98.95% / 98.15%.
 - 12 Chromium acceptance tests pass with mocked Auth/application/provider APIs.
 - Production build and 9 production HTTP smoke checks pass.
-- All 19 migrations apply to isolated PGlite databases; production dependency audit: 0 vulnerabilities.
+- All 20 migrations apply to isolated PGlite databases; production dependency audit: 0 vulnerabilities.
 
 The existing development history is merged without force-pushing. Earlier regression
 tests are retained and adapted to the current contract; duplicate historical migration

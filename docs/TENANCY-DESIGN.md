@@ -61,9 +61,20 @@ atomically claim the connection. A legitimate site owner must not share this pro
 Wix site transfers and reinstall/delayed lifecycle events require staging acceptance;
 the instance ID may survive reinstall and does not itself prove current ownership.
 
+Migration `20261104000000_pending_wix_removal_barrier` blocks token activation,
+reconnection and synchronization while an already-persisted removal remains unfinished.
+Process that removal before reconnecting; do not delete or mark it successful merely
+to bypass the barrier. A legacy removal without account metadata blocks all Wix sites
+until its encrypted payload is safely processed. Failed/terminal removals require
+operator investigation. No occurrence order is inferred from JWT `iat` or arrival time.
+A first delivery arriving after reconnection still disables the installation safely;
+automatic recovery from that case requires verified provider lifecycle semantics.
+
 Official references: [signed app instance validation](https://dev.wix.com/docs/build-apps/develop-your-app/auth/app-instances/parse-the-app-instance-query-parameter),
 [Token Info](https://dev.wix.com/docs/api-reference/app-management/oauth-2/token-info),
 [app instance lifecycle](https://dev.wix.com/docs/build-apps/develop-your-app/auth/app-instances/about-app-instances).
+The [legacy removal event](https://dev.wix.com/docs/api-reference/app-management/app-instance/app-instance-removed)
+documents delayed delivery without a usable occurrence timestamp in its event schema.
 
 ## HubSpot consent binding
 

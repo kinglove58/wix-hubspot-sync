@@ -17,6 +17,8 @@
 | Customer access lacked ownership authorization | P1 | Separate verified Supabase Auth namespace, active membership/role checks, scoped resources and immutable connection ownership; SQL, route and browser regressions |
 | Customer OAuth identity or tenant substitution | P1 | Independent private browser nonce plus single-use state hashes, encrypted short-lived user token, fresh Auth and membership verification before exchange, atomic ownership save |
 | Customer Wix instance guessing | P1 | Owner-only signed context validated through official Wix Token Info; raw site IDs rejected before provider effects |
+| Reconnection could overtake a persisted unfinished uninstall | P1 | SQL activation barrier plus fail-closed sync resolution; pending/processing/failed, bootstrap, refresh, account scope and receiver-crash workflow tests |
+| Lifecycle effect could receive a mismatched account argument | P1 | Removal transaction checks persisted verified account metadata before changing credentials; SQL regression preserves the unrelated site |
 
 Wix verifies RS256 before decoding nested data and requires numeric unexpired `exp`;
 `iat`, when supplied, is validated. The verifier does not invent a requirement for

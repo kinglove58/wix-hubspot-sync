@@ -265,6 +265,17 @@ Release blockers still requiring acceptance/design work:
   in flight. Disconnect uses the installation lease and disables local credentials
   before remote revocation; failed revocation is reported and needs provider-side review.
   Full HubSpot app uninstall and customer data erasure are separate operations.
+- Apply `20261104000000_pending_wix_removal_barrier` before running this code. The
+  database blocks Wix credential activation while a persisted removal is unfinished,
+  and pair resolution blocks synchronization until its status can be verified clear.
+  Complete the removal before reconnecting. Legacy removals missing account metadata
+  block all Wix sites conservatively. Investigate failed/terminal removals and process
+  the actual verified event; never remove history or fake success to reopen a connection.
+  The legacy webhook does not document an occurrence timestamp, so JWT issuance and
+  local arrival cannot safely distinguish a first delayed uninstall after reinstall.
+  That event still disables the installation; live lifecycle acceptance remains open.
+  Redact `instance`, `signedInstance`, OAuth `code` and `state` query parameters in
+  hosting/proxy access logs, analytics and error collectors as well as application logs.
 - Control scheduler overlap and test sustained load; lock contention is rescheduled
   without consuming the retry budget, but high-volume throughput still needs measurement.
 - Contact deletion/merge, historic bulk import, automatic remapping of deleted linked

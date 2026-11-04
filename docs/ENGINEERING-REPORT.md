@@ -1,4 +1,4 @@
-# Engineering report — 2026-11-03
+# Engineering report — 2026-11-04
 
 ## A. Executive summary
 
@@ -15,6 +15,11 @@ Customer access now has a separate Supabase-authenticated workspace, active orga
 membership, role/resource authorization, signed Wix ownership proof and independently
 browser-bound HubSpot consent. The feature remains off by default pending real staging
 acceptance. The privileged operator console remains separate.
+
+A further lifecycle fix blocks credential activation and both synchronization
+directions while a verified Wix uninstall is persisted but unfinished. This covers
+the receiver-crash/reconnect race without guessing provider occurrence order or
+discarding uninstall events.
 
 ## B. Architecture
 
@@ -38,7 +43,7 @@ See `ARCHITECTURE.md` for layers, data flow, conflicts, fallback rules and limit
 | `src/lib/security`, `env.ts`, `supabase/admin.ts` | Sessions, origin checks, key validation, safe logs and server-only credentials |
 | `src/app/api/{connections/pair,mappings,sync/run,worker,health/ready}` | Explicit routing, protected bounded work and queue readiness |
 | `src/app/page.tsx` | Shared-pair selection, empty-value control, notices and accessible labels |
-| Thirteen new SQL migrations | Pairing, states, fencing, transactions, leases, audit scope, login limits, uninstall, intents, tenancy and onboarding |
+| Fourteen new SQL migrations | Pairing, states, fencing, transactions, leases, audit scope, login limits, uninstall, intents, tenancy, onboarding and pending-removal barrier |
 | `src/app/api/customer`, `src/app/customer`, `src/components` | Customer and shared dashboard UI, organization scoping, protected customer management routes |
 | `customer-{auth,config,resources,response}.ts`, `customer-connections.ts`, `customer-oauth.ts`, `customer-proof.ts` | Verified identity, roles, public configuration checks, safe errors, atomic claims and provider proof/consent binding |
 | `tests`, `playwright.config.ts`, `vitest.config.mts` | SQL workflows, contract/security tests, coverage gates, browser acceptance |
@@ -59,19 +64,20 @@ final-read/PATCH sequence, which cannot prevent an external edit racing the PATC
 ## E. Testing
 
 See `VALIDATION.md` for the required command/result table and measured coverage.
-270 Vitest tests and 12 Chromium tests pass; zero Vitest tests skipped. Production build
+275 Vitest tests and 12 Chromium tests pass; zero Vitest tests skipped. Production build
 and nine HTTP smoke checks pass. Provider/Auth HTTP is synthetic; SQL uses PGlite.
-Overall coverage: 92.40% statements / 89.31% branches; runtime engine: 100% / 93.54%.
-Synchronization measures 95.50% statements / 91.80% branches and security measures
-98.95% / 98.15%, meeting the core targets. Whole-library branch coverage is 89.31%;
+Overall coverage: 92.63% statements / 89.83% branches; runtime engine: 100% / 93.54%.
+Synchronization measures 95.52% statements / 91.85% branches and security measures
+98.95% / 98.15%, meeting the core targets. Whole-library branch coverage is 89.83%;
 live provider and production checks remain unverified.
 
 ## F. Database
 
 Inspected six baseline migrations, including all four named in the assignment plus
 privilege lockdown/indexing. Created eleven migrations `20261101000000`–`20261101000010`.
-Added two customer migrations `20261103000000`–`20261103000001`. All 19 apply to
-isolated local PGlite databases. None was applied to remote development,
+Added two customer migrations `20261103000000`–`20261103000001` and
+`20261104000000` for the pending-removal barrier. All 20 apply to isolated local
+PGlite databases. None was applied to remote development,
 staging or production. Target Supabase migration ledger remains unverified.
 New pair FKs preserve historical rows with `NOT VALID` while checking new writes.
 After reviewing original pair ownership, reconcile orphans and validate
@@ -88,7 +94,10 @@ The divergent development history was merged as `c70a837` without force-pushing;
 its three regression test files were retained and adapted to the current contracts.
 Hosted Node 22 CI passed for that merge:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41692202068
-Subsequent commits add tests/documentation; inspect their own hosted checks before merge.
+Customer implementation `cc1c643` and tests `cb4972b` also passed hosted Node 22 CI
+on documentation commit `58a5de7`:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41773192540
+The pending-removal follow-up requires its own hosted checks before merge.
 No PR merge or production deployment was performed or authorized.
 
 ## H. Outstanding work

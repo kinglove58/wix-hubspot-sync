@@ -42,6 +42,12 @@ allowed routes; shared endpoints are supported. Inbound events fan out over conf
 active pairs. Unpaired or ambiguous manual resolution fails safely. Historical links
 survive disconnects. Pair endpoints cannot be changed in place.
 
+Pair resolution checks the durable Wix removal barrier before synchronization.
+An unfinished verified removal also blocks credential activation at the database
+boundary, covering operator reconnect, customer onboarding, bootstrap and token refresh.
+Completed removal must precede reconnect. The barrier does not infer occurrence order
+for first deliveries that arrive only after reconnect; those still disable the site.
+
 The root operator console retains privileged global access. The optional `/customer`
 workspace uses verified Supabase Auth users, active tenant membership and explicit
 resource checks in a separate `/api/customer` namespace. Owner/admin roles can mutate;
