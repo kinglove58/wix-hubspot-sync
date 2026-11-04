@@ -60,3 +60,14 @@ cases in isolated Supabase, Wix and HubSpot development accounts. Verify configu
 callbacks, scopes, signed payloads, optional portal properties, token revocation,
 uninstall, Retry-After, delayed search indexing and user edits during writes. Record
 sanitized event IDs and outcomes; never use customer contact data for acceptance.
+
+For a designated isolated staging database, `scripts/staging-database-smoke.sql`
+checks constraints, grants and queue transitions with synthetic records rolled back.
+For live read-only PostgREST checks, securely inject `SUPABASE_URL`,
+`SUPABASE_SECRET_KEY`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` and
+`ALLOW_STAGING_SMOKE=true`, then run `node scripts/staging-rest-smoke.mjs`.
+It validates the public key against Auth, checks server reads with `limit=0` and
+requires PostgreSQL permission denial for the public role on all 13 tables. It uses
+three bounded workers, 20-second timeouts and rejects redirects; it never prints
+keys or response payloads. These checks require real staging access and do not run
+in ordinary CI. Never inject production credentials for acceptance tests.

@@ -48,7 +48,11 @@ filenames use the canonical versions already present on main.
 Real Wix/HubSpot acceptance, deployment and production scheduler execution remain
 unverified. Supabase staging has 20 migration ledger entries, 13 RLS-enabled tables
 and zero anon/authenticated table read grants. PostgREST and multi-session contention
-remain unverified. Customer mode requires staging Auth/ownership/consent
+remain unverified. Follow-up live checks now also pass for 27 read-only Auth/PostgREST
+assertions and the application's Supabase adapter. A separate Vercel staging project
+tracks this branch with baseline secrets configured; deployment verification is pending.
+The private HubSpot staging project passed cloud build #1 with auto-deploy skipped
+and all contact subscriptions inactive. Customer mode requires staging Auth/ownership/consent
 acceptance before activation. HubSpot's final GET/PATCH cannot atomically fence an external user edit.
 Wix reinstall/site-transfer and delayed first uninstall ordering also require acceptance.
 Live multi-process/load fault injection and provider/queue boundary coverage remain open.

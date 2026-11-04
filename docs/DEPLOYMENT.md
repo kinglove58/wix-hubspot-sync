@@ -27,13 +27,19 @@ exact domain. Provider webhook/callback URLs must be reachable through deploymen
 protection; retain the application's own admin and worker authentication. After the
 reviewed staging migrations, invoke the protected dispatcher manually, verify the
 actual logs/queue, then configure the gated GitHub scheduler described below.
-No Vercel project, paid plan, deployment or production setting was changed here.
+A separate user-authorized Vercel staging project now exists, tracks
+`fix/webhook-retries` and has Node.js 22, `npm ci` and twelve baseline variables
+configured. Vercel labels its primary-domain environment Production; this belongs
+only to the isolated staging project. No paid plan or live production setting was
+changed. Consult `VALIDATION.md` for the current deployment verification boundary.
 
 The user has selected Vercel staging. The live staging SQL verification is repeatable
 with `scripts/staging-database-smoke.sql` in the dedicated staging SQL editor. It uses
 synthetic records and rolls back its transaction; never use production for acceptance
-tests. Inspect the final PASS result, not merely a successful submission. SQL checks
-do not replace testing service-key/PostgREST access from the deployed application.
+tests. Inspect the final PASS result, not merely a successful submission. Live
+service-key/PostgREST access and public-role denial passed from the local backend;
+repeat `scripts/staging-rest-smoke.mjs` with securely injected staging variables
+and verify connectivity again from the deployed application.
 
 Official deployment references:
 

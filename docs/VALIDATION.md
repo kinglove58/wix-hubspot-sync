@@ -79,14 +79,36 @@ tables readable by anon/authenticated**. The last migration is `20261104000000`.
 `scripts/staging-database-smoke.sql` also passed against real Supabase PostgreSQL:
 privileged RPC isolation, cross-tenant pair rejection, first queue claim, duplicate
 claim rejection, stale lease recovery and exhausted-retry terminal state. Synthetic
-rows were rolled back. This does not test PostgREST, multi-session contention, OAuth,
-provider writes or scheduled workers. Existing unrelated Supabase projects were untouched.
+rows were rolled back. Existing unrelated Supabase projects were untouched.
 
-HubSpot CLI 8.16.0 successfully scaffolded a local private OAuth project for platform
-2026.09 using the user-approved scoped development key. The key is stored outside
-the repository with Windows DPAPI encryption and owner-only ACLs. No project upload,
-app installation, live webhook registration or HTTPS deployment has been verified.
-The user selected Vercel staging; account access/setup is still pending.
+After the user approved encrypted local storage of the existing staging keys,
+`node scripts/staging-rest-smoke.mjs` passed **27 read-only live HTTP checks**:
+public-key validation through Auth settings plus server access and public-role
+permission denial (`42501`) for all 13 tables. Table reads use `limit=0`; no contact
+rows were downloaded. A separate live worker RPC probe returned null for a nonexistent
+event under the server key and denied the public role. The actual application
+`getSupabaseAdmin()` adapter also passed table/RPC probes (HTTP 200, zero rows,
+no event claimed). Credentials are DPAPI-encrypted outside Git with owner-only ACLs.
+Multi-session contention, provider OAuth/writes and scheduled workers remain unverified.
+
+HubSpot CLI 8.16.0 validated and uploaded a new private OAuth staging project on
+platform 2026.09 using the user-approved scoped development key. Cloud build #1
+passed for its app and webhook components. Two callbacks target the reserved staging
+domain; all 14 contact subscriptions remain inactive. Auto-deploy was explicitly
+skipped. No app installation, provider consent or contact write is verified. The CLI
+key is stored outside Git with Windows DPAPI encryption and owner-only ACLs.
+
+The user selected Vercel staging and approved its isolated server configuration.
+The separate `wix-hubspot-sync-staging` project exists, tracks `fix/webhook-retries`,
+and reserves `wix-hubspot-sync-staging.vercel.app`. Its primary environment is labelled
+Production by Vercel, but it is exclusively this new staging project. Twelve variables
+are persisted: eleven non-revealable Secret values and one Config publishable key.
+Values were checked against the encrypted local configuration before submission.
+Five independent random application secrets are retained with DPAPI and owner-only
+ACLs; customer access is disabled. Node.js 22, `npm ci`, Fluid compute, Frankfurt
+functions and a 300-second default function duration are configured. No HTTPS
+deployment or scheduled worker execution is verified yet. No live production app,
+database or provider configuration was changed.
 
 Hosted CI passed for `515693a`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118

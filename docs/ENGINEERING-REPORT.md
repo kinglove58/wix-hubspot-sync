@@ -109,7 +109,7 @@ No PR merge or production deployment was performed or authorized.
 | Priority | Action | Owner / reason |
 |---|---|---|
 | P1 | Real Wix/HubSpot development acceptance and callback/scope/subscription checks | Account owner + QA; mocks cannot prove live setup |
-| P1 | Verify staging backend/PostgREST connectivity, multi-session contention and reviewed pairs | Engineering; migration/RLS/queue SQL checks passed, HTTP/provider acceptance pending |
+| P1 | Verify deployed staging connectivity, multi-session contention and reviewed pairs | Engineering; live SQL, 27 HTTP access checks and the local application DB adapter passed; deployed/provider acceptance pending |
 | P1 | Resolve/accept documented HubSpot edit-race semantics | Product + engineering; no verified atomic conditional PATCH |
 | P1 | Real customer Auth/ownership/consent acceptance before feature activation | Account owner + QA; implemented with local SQL/API/browser tests, live behavior unverified |
 | P1 | Wix reinstall/site-transfer and delayed first uninstall acceptance | Engineering + account owner; instance IDs may survive reinstall, so replay dedup alone cannot establish lifecycle ordering |
@@ -128,7 +128,8 @@ fully atomic cross-provider last-write-wins or an active production scheduler is
 
 1. **Supabase:** the new isolated staging project now has all 20 migrations applied,
    and live RLS/grant, tenant-pair and queue smoke checks passed (`VALIDATION.md`).
-   Next configure reviewed pairs, test PostgREST/backend connectivity and verify
+   Local backend/PostgREST checks also passed. Next configure reviewed pairs,
+   verify connectivity from the deployed host and test
    multi-session contention. Configure server-only
    `SUPABASE_URL` and modern `SUPABASE_SECRET_KEY` (legacy service-role fallback supported)
    on the host. For customer access follow `TENANCY-DESIGN.md`: confirmed email Auth,
