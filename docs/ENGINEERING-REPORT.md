@@ -11,6 +11,10 @@ fabricated submission times and premature success auditing. Removed an unused
 single-row mapping writer so configuration has one atomic write path.
 Production status: **NOT READY**. Isolated staging is deployed and its backend smoke
 checks pass; real provider acceptance remains outstanding (`VALIDATION.md`).
+The runtime-pinned staging deployment and twelve live security checks pass. Wix's
+signed sample was encrypted and persisted; its worker attempt safely terminated on
+Wix HTTP 404 for the sample instance. Four Wix subscriptions are registered, but
+provider installations and successful contact synchronization remain unverified.
 
 Customer access now has a separate Supabase-authenticated workspace, active organization
 membership, role/resource authorization, signed Wix ownership proof and independently
@@ -114,7 +118,7 @@ No PR merge or production deployment was performed or authorized.
 | P1 | Resolve/accept documented HubSpot edit-race semantics | Product + engineering; no verified atomic conditional PATCH |
 | P1 | Real customer Auth/ownership/consent acceptance before feature activation | Account owner + QA; implemented with local SQL/API/browser tests, live behavior unverified |
 | P1 | Wix reinstall/site-transfer and delayed first uninstall acceptance | Engineering + account owner; instance IDs may survive reinstall, so replay dedup alone cannot establish lifecycle ordering |
-| P1 | Complete provider setup, verify the runtime-pinned staging deployment, scheduler execution and alerts | Engineering + account owner; initial HTTPS/DB/authenticated empty-worker checks passed |
+| P1 | Configure and verify a continuous staging scheduler and alerts | Engineering + hosting owner; HTTPS/Node22/DB/authenticated worker checks passed, dispatch remains manual |
 | P2 | Extend provider/queue boundary coverage and concurrent crash/load fault injection | Engineering + QA; core coverage targets met, live fault testing outstanding |
 | P2 | Retention, key rotation, restore exercise and ingress throttling | Security/operations before real personal data |
 | P2 | Contact deletion/merge, geographic conversion and bulk import | Product scope and provider acceptance |

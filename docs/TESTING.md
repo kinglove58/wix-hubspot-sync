@@ -1,6 +1,6 @@
 # Testing
 
-Use Node 22.12+ and `npm ci`. Windows PowerShell may require `npm.cmd`.
+Use Node 22.x (22.12+) and `npm ci`. Windows PowerShell may require `npm.cmd`.
 
 | Command | Scope |
 |---|---|
@@ -71,3 +71,10 @@ requires PostgreSQL permission denial for the public role on all 13 tables. It u
 three bounded workers, 20-second timeouts and rejects redirects; it never prints
 keys or response payloads. These checks require real staging access and do not run
 in ordinary CI. Never inject production credentials for acceptance tests.
+
+`node scripts/deployed-staging-smoke.mjs` checks the approved fixed staging host.
+Inject `APP_BASE_URL`, `ADMIN_API_KEY`, `CRON_SECRET`, `HUBSPOT_CLIENT_SECRET` and
+`ALLOW_STAGING_SMOKE=true` securely. It requires an empty retryable queue before
+probing authenticated worker dispatch, validates endpoint protection and signed
+empty-batch behavior, and prints status codes only. This is a manual network check,
+not real provider contact acceptance, and is excluded from ordinary CI.

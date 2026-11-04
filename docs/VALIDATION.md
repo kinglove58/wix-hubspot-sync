@@ -132,6 +132,34 @@ No app has been installed
 into a portal/site. Scheduled execution and real provider writes remain unverified.
 No live production app, database or provider configuration was changed.
 
+## Runtime-pinned deployment and provider delivery
+
+Deployment `2grTH9b4sU7Ws52neqCQJMUu6ZVG` for `b7738db` reached Ready. Its actual
+deployment settings show **Node 22.x, Fluid compute enabled, region fra1**.
+Hosted CI passed: https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41788467940
+`scripts/deployed-staging-smoke.mjs` records the twelve deployed security/backend
+checks described above. The HubSpot batch is operator-signed and empty; it is not
+evidence of HubSpot-origin delivery or contact synchronization.
+
+Wix's own Contact Created Trigger Test reported successful delivery. Supabase
+contained one matching verified event, initially pending with zero attempts and a
+1,790-character encrypted payload. A real worker dispatch claimed/decrypted it and
+attempted Wix instance authentication; Wix returned 404 for the sample instance.
+The event became `failed`, `WIX_HTTP_404`, attempt 1, `terminal=true`, no next retry.
+This verifies durable signed ingress and permanent-error handling, **not successful
+contact synchronization**. The failed sample was retained for audit, not deleted or
+manually marked successful. No provider installation or contact write occurred.
+
+Four Wix draft subscriptions are saved and visible, all targeting the staging
+endpoint: Contact Created, Contact Updated, App Installed and App Removed. Their
+catalog registration IDs include `APP_PROVISIONED_WEBHOOK` and `APP_REMOVED_WEBHOOK`;
+the documented signed lifecycle payload types remain `AppInstalled` and `AppRemoved`.
+Wix warns activation can take up to ten minutes. The dedicated HubSpot QA account
+was also visually verified; developer test accounts do not require private-app
+allowlisting. OAuth reached the final unverified-app consent screen for that QA
+portal. Its acknowledgement and Connect app were not submitted. Wix Test on dev site
+was prepared but not selected. Provider installation approval remains outstanding.
+
 Hosted CI passed for `515693a`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118
 Later documentation/check-script changes require their own hosted result.

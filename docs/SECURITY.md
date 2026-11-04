@@ -38,15 +38,18 @@ was introduced. SQL claim/lease functions are restricted to trusted backend role
   establish live consent, email delivery or Wix dashboard context behavior.
 * P1: HubSpot has no verified atomic conditional contact PATCH contract. A final-read
   preflight reduces stale writes but cannot eliminate edits racing the write.
-* P1: Apply and verify migrations, provider configuration and production scheduler in
-  controlled staging. PGlite does not verify deployed Supabase/PostgREST behavior.
+* P1: Complete provider installation, revocation/lifecycle acceptance and continuous
+  scheduler verification in isolated staging. All 20 migrations, live RLS/grant and
+  PostgREST checks now pass; multi-session behavior remains a separate release gate.
 * P2: Multi-process fault injection, retention policies, key rotation, restore exercises
   and ingress throttling. Sync/security coverage targets are met; provider/queue
   boundary coverage still has room to improve.
 
 Do not accept real customer data until release owners resolve the applicable P1 gates.
-No production penetration test, external security certification or live provider
-acceptance is claimed. Dependency audit results belong in the dated validation record.
+No production penetration test, external security certification or successful real
+provider contact workflow is claimed. Wix's signed sample delivery and deployed
+security checks are recorded in `VALIDATION.md`; they do not replace contact acceptance.
+Dependency audit results belong in the dated validation record.
 
 Report vulnerabilities privately to the repository owner. Do not put tokens, contact
 payloads, OAuth codes or database credentials in issues or logs. Rotation of the

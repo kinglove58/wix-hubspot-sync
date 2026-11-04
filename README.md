@@ -41,7 +41,7 @@ This is a self-managed Wix app integration. Wix CLI is not required for the curr
 
 ## Local setup
 
-1. Install Node.js 22.12 or newer (Node.js 22 is the CI target).
+1. Install Node.js 22.x, version 22.12 or newer (the same major used by CI and staging).
 2. Clone this repository and run `npm ci`.
 3. Copy `.env.example` to `.env.local`.
 4. Configure the environment variables below.

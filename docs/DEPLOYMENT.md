@@ -53,7 +53,7 @@ Official deployment references:
 
 ## Reproducible validation
 
-Use Node.js 22.12+ and the committed lockfile:
+Use Node.js 22.x (22.12+) and the committed lockfile:
 
 ```sh
 npm ci
