@@ -289,3 +289,16 @@ second skipped, one persistent link. Existing application migrations remain20;
 Cron/http/Vault settings are version-controlled staging operational setup. No
 production database/deployment, main push, merge, customer access activation or
 external alert delivery was performed.
+
+Automatic reverse-direction follow-up also passed: a fresh synthetic Wix contact
+was created using the real installation token. Its actual signed webhook and the
+one-minute timer produced a single persistent HubSpot link, and a real HubSpot GET
+asserted the expected first/last name. **Manual dispatch calls: zero.** Automatic
+staging synchronization is therefore verified in both directions.
+
+Commit `f558abd` passed hosted validate CI:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41893013502
+Vercel deployment `CP11bZ6EEWecCMjqVxTTwoEyEQ8b` succeeded. The working application
+source was unchanged during this scheduler follow-up; SQL/operational settings were
+verified directly against the isolated staging database. The Cron UI additionally
+showed seven consecutive synchronous guarded successes (runs5–11) by20:04 WAT.
