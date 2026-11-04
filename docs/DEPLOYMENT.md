@@ -33,6 +33,11 @@ configured. Vercel labels its primary-domain environment Production; this belong
 only to the isolated staging project. No paid plan or live production setting was
 changed. Consult `VALIDATION.md` for the current deployment verification boundary.
 
+Keep the bounded Node engine in `package.json` and the lockfile aligned with CI.
+An open-ended `>=22.12.0` caused the first real Vercel build to select Node 26 despite
+the project's Node 22 setting. The supported range is now `>=22.12.0 <23`; verify
+the selected runtime in the next build rather than assuming the dashboard wins.
+
 The user has selected Vercel staging. The live staging SQL verification is repeatable
 with `scripts/staging-database-smoke.sql` in the dedicated staging SQL editor. It uses
 synthetic records and rolls back its transaction; never use production for acceptance

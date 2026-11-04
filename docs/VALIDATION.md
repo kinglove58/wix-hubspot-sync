@@ -106,9 +106,31 @@ are persisted: eleven non-revealable Secret values and one Config publishable ke
 Values were checked against the encrypted local configuration before submission.
 Five independent random application secrets are retained with DPAPI and owner-only
 ACLs; customer access is disabled. Node.js 22, `npm ci`, Fluid compute, Frankfurt
-functions and a 300-second default function duration are configured. No HTTPS
-deployment or scheduled worker execution is verified yet. No live production app,
-database or provider configuration was changed.
+functions and a 300-second default function duration are configured.
+
+Staging deployment `FWJnowuX26NJC28MQwLpxLumpCrD` for `7972108` reached Ready and
+serves HTTPS at `https://wix-hubspot-sync-staging.vercel.app`. Health returned 200;
+readiness returned 401 without auth and 200 with operator auth, reporting the real
+database reachable and zero configured pairs. Worker dispatch returned 401 without
+auth and 200 with the cron secret, with zero queued/attempted events. This proves
+deployment/DB connectivity and endpoint protection, not provider synchronization.
+Its build log exposed that the open-ended Node engine selected 26 despite the
+project's Node 22 setting. The engine is now bounded to `>=22.12.0 <23`; a local
+production build and explicit typecheck passed on actual Node 22.23.4. The next
+Vercel deployment must verify the selected runtime. Hosted CI passed for `7972108`:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41786141260
+
+HubSpot staging build #1 was subsequently deployed successfully; the private app
+exists with all subscriptions inactive. A dedicated FREE-tier QA account was created;
+the CLI's subsequent local config save failed, so remote account verification is
+required and creation must not be repeated. User-approved provider credentials are
+encrypted locally and configured only in staging. The real Wix RSA-2048 public key
+was captured from its contact-created code sample and validated with `createPublicKey`.
+Six provider settings were checked before submission and verified in Vercel's settings
+list, bringing staging to eighteen variables (seventeen Secret, one public Config).
+No app has been installed
+into a portal/site. Scheduled execution and real provider writes remain unverified.
+No live production app, database or provider configuration was changed.
 
 Hosted CI passed for `515693a`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118

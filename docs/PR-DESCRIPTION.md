@@ -45,14 +45,17 @@ filenames use the canonical versions already present on main.
 
 ## Release status: NOT READY for production
 
-Real Wix/HubSpot acceptance, deployment and production scheduler execution remain
+Real Wix/HubSpot contact acceptance and production scheduler execution remain
 unverified. Supabase staging has 20 migration ledger entries, 13 RLS-enabled tables
 and zero anon/authenticated table read grants. PostgREST and multi-session contention
 remain unverified. Follow-up live checks now also pass for 27 read-only Auth/PostgREST
 assertions and the application's Supabase adapter. A separate Vercel staging project
-tracks this branch with baseline secrets configured; deployment verification is pending.
-The private HubSpot staging project passed cloud build #1 with auto-deploy skipped
-and all contact subscriptions inactive. Customer mode requires staging Auth/ownership/consent
+tracks this branch with baseline secrets configured. Its first HTTPS deployment passed
+health, protected readiness/DB and authenticated empty-worker checks. Build logs exposed
+an open-ended Node engine override; the candidate now bounds Node to 22 and passes a
+local build/typecheck on Node22.23.4, pending the next Vercel runtime verification.
+The private HubSpot staging project passed cloud build and deployment #1; all contact
+subscriptions remain inactive. Customer mode requires staging Auth/ownership/consent
 acceptance before activation. HubSpot's final GET/PATCH cannot atomically fence an external user edit.
 Wix reinstall/site-transfer and delayed first uninstall ordering also require acceptance.
 Live multi-process/load fault injection and provider/queue boundary coverage remain open.
