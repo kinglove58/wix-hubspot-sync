@@ -14,7 +14,7 @@ Use Node 22.12+ and `npm ci`. Windows PowerShell may require `npm.cmd`.
 | `npm run test:coverage` | Entire Vitest suite with HTML, LCOV, JSON summary and JUnit reports |
 | `npm run build` | Production Next.js compilation and route generation |
 | `npm run test:smoke` | Temporary production server and unauthenticated HTTP security checks |
-| `npm run test:e2e` | Chromium operator flows against synthetic API/provider responses; requires prior build |
+| `npm run test:e2e` | Chromium operator and customer flows against synthetic Auth/API/provider responses; requires prior build |
 
 Install Chromium once with `npx playwright install chromium` (CI uses `--with-deps`).
 Tests use synthetic records only. They do not need or read real provider credentials.
@@ -29,6 +29,14 @@ storage, reconnect, rotation, bounded 401 refresh and revoked credentials.
 Browser tests exercise actual rendered production UI but intercept application API
 calls; they do not prove live OAuth consent or provider writes.
 
+`customer-tenancy.test.ts` applies the real tenancy/onboarding migrations and exercises
+verified identities, role revocation, resource scoping, immutable/competing ownership,
+RLS, signed Wix proof, consent binding, cancellation, expiry and replay. Additional
+security tests cover outages, ambiguous pairs, public-key configuration, provider
+introspection errors and redirect restrictions. Six customer browser cases cover
+signup verification, session restore/logout, organization switching, viewer controls,
+mapping/manual sync, Wix context removal and mocked HubSpot consent.
+
 Reports are written to `coverage/`, `reports/`, `playwright-report/` and `test-results/`.
 CI uploads them even on failure. Coverage goals remain 90% statements/branches for
 critical business logic and complete signature/retry branches. A passing test suite
@@ -36,6 +44,7 @@ does not imply those targets were met; consult the actual dated validation recor
 
 The synchronization directory has an aggregate 90% gate for statements, branches,
 functions and lines, in addition to engine/Forms-specific and signature/retry gates.
+The security directory also enforces an aggregate 90% gate for all four measures.
 Forms tests cover delayed/undated events, disabled and partial mappings, contact-link
 failures, schema limits, array fields, attribution and audit ordering. A SQL workflow
 also verifies persisted custom mappings in both directions without losing defaults.

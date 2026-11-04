@@ -25,6 +25,7 @@ A self-managed Next.js integration that synchronizes Wix contacts and form submi
 - Wix Forms submission ingestion with email/name/phone and UTM, landing-page, referrer, and submission-time attribution properties in HubSpot.
 - Password-protected admin dashboard for connections, mapping configuration, manual one-contact sync, and recent event monitoring.
 - Admin-only API endpoints and a separate CRON-protected queue dispatcher.
+- Optional `/customer` workspace with verified Supabase Auth, organizations and owner/admin/viewer access, scoped connection status/mappings/sync, signed Wix ownership proof and tenant-bound HubSpot consent. Disabled by default pending staging acceptance.
 
 The live integrations are not considered verified until real Wix and HubSpot credentials are configured and end-to-end tests are run against test contacts.
 
@@ -58,7 +59,11 @@ Never commit `.env.local`, OAuth credentials, encryption keys, webhook public ke
 | `SESSION_SECRET` | Random secret of at least 32 characters for signed admin sessions |
 | `TOKEN_ENCRYPTION_KEY` | 32-byte key, encoded as 64 hex characters or base64 |
 | `SUPABASE_URL` | Supabase project URL |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service role key |
+| `SUPABASE_SECRET_KEY` | Preferred modern server-only Supabase secret key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Legacy server-only fallback when no modern secret key is configured |
+| `CUSTOMER_ACCESS_ENABLED` | `false` by default; enable only after customer staging setup and acceptance |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public browser key for optional Supabase Auth; legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is supported as fallback |
+| `HUBSPOT_CUSTOMER_REDIRECT_URI` | Optional exact customer callback, defaults to `APP_BASE_URL/api/customer/oauth/hubspot/callback` |
 | `HUBSPOT_CLIENT_ID` / `HUBSPOT_CLIENT_SECRET` | HubSpot developer app credentials |
 | `HUBSPOT_REDIRECT_URI` | Must exactly match the HubSpot app callback URL |
 | `WIX_APP_ID` / `WIX_APP_SECRET` | Wix self-managed app credentials |
@@ -76,6 +81,10 @@ openssl rand -hex 32
 Use separate random values for `SESSION_SECRET`, `TOKEN_ENCRYPTION_KEY`, `CRON_SECRET`, and `ADMIN_API_KEY`. The encryption key must not be changed after tokens have been stored unless you first re-encrypt those tokens.
 
 ## Provider setup
+
+For customer account setup, ownership adoption and the separate customer OAuth callback,
+follow [customer tenancy and onboarding](docs/TENANCY-DESIGN.md). The root console
+remains privileged operator access. Never give customers its password or API key.
 
 ### HubSpot
 

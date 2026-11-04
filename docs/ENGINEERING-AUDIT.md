@@ -156,6 +156,8 @@ Remaining release gates and failure-model limitations are tracked explicitly in
 [DEPLOYMENT.md](DEPLOYMENT.md). Most importantly, local tests are not evidence of
 distributed exactly-once delivery across a provider-success/local-failure crash,
 nor of multi-process behavior under a long suspension past lease expiry. Customer
-membership authorization, contact deletion/merge, historic import and key rotation
-remain outside the implemented feature set. The legacy pure `src/sync` model and its
+membership authorization was subsequently implemented with local SQL/API/browser tests
+and remains disabled pending live acceptance; see `TENANCY-DESIGN.md`. Contact
+deletion/merge, historic import and key rotation remain outside the implemented feature set.
+The legacy pure `src/sync` model and its
 tests remain separate from runtime services and must not be counted as engine coverage.

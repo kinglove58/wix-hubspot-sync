@@ -11,6 +11,11 @@ fabricated submission times and premature success auditing. Removed an unused
 single-row mapping writer so configuration has one atomic write path.
 Production status: **NOT READY**. Controlled staging is the next verification environment.
 
+Customer access now has a separate Supabase-authenticated workspace, active organization
+membership, role/resource authorization, signed Wix ownership proof and independently
+browser-bound HubSpot consent. The feature remains off by default pending real staging
+acceptance. The privileged operator console remains separate.
+
 ## B. Architecture
 
 Verified ingress persists encrypted events before acknowledgement. Protected workers
@@ -33,7 +38,9 @@ See `ARCHITECTURE.md` for layers, data flow, conflicts, fallback rules and limit
 | `src/lib/security`, `env.ts`, `supabase/admin.ts` | Sessions, origin checks, key validation, safe logs and server-only credentials |
 | `src/app/api/{connections/pair,mappings,sync/run,worker,health/ready}` | Explicit routing, protected bounded work and queue readiness |
 | `src/app/page.tsx` | Shared-pair selection, empty-value control, notices and accessible labels |
-| Eleven new SQL migrations | Pairing, states, fencing, transactions, leases, audit scope, login limits, uninstall, intents and terminal state |
+| Thirteen new SQL migrations | Pairing, states, fencing, transactions, leases, audit scope, login limits, uninstall, intents, tenancy and onboarding |
+| `src/app/api/customer`, `src/app/customer`, `src/components` | Customer and shared dashboard UI, organization scoping, protected customer management routes |
+| `customer-{auth,config,resources,response}.ts`, `customer-connections.ts`, `customer-oauth.ts`, `customer-proof.ts` | Verified identity, roles, public configuration checks, safe errors, atomic claims and provider proof/consent binding |
 | `tests`, `playwright.config.ts`, `vitest.config.mts` | SQL workflows, contract/security tests, coverage gates, browser acceptance |
 | `package*.json`, `next.config.ts`, `eslint.config.mjs`, `scripts/smoke.mjs` | Reproducible dependencies and working production quality commands |
 | `.github/workflows/{ci,dispatch}.yml` | Full validation, report upload and gated scheduling |
@@ -46,24 +53,25 @@ The Git diff provides the complete file inventory. Generated test reports remain
 Remediated arbitrary portal selection, OAuth replay, unfenced completion, uncertain
 duplicate creates, unsafe mapping clears, stale refresh writes and uninstall replay.
 Signature/retry statements and branches measure 100% and are gated. See `SECURITY.md`.
-Open P1 conditions: shared operator authorization cannot serve customer self-service;
-HubSpot's final-read/PATCH sequence cannot prevent an external edit racing the PATCH.
+Open P1 conditions include live acceptance of the new customer flows and HubSpot's
+final-read/PATCH sequence, which cannot prevent an external edit racing the PATCH.
 
 ## E. Testing
 
 See `VALIDATION.md` for the required command/result table and measured coverage.
-234 Vitest tests and 6 Chromium tests pass; zero Vitest tests skipped. Production build
-and seven HTTP smoke checks pass. Provider HTTP is synthetic; SQL uses PGlite.
-Overall coverage: 91.85% statements / 88.48% branches; runtime engine: 100% / 93.54%.
-Synchronization measures 95.67% statements / 91.94% branches and security measures
-98.01% / 97.18%, meeting the core targets. Whole-library branch coverage is 88.48%;
+270 Vitest tests and 12 Chromium tests pass; zero Vitest tests skipped. Production build
+and nine HTTP smoke checks pass. Provider/Auth HTTP is synthetic; SQL uses PGlite.
+Overall coverage: 92.40% statements / 89.31% branches; runtime engine: 100% / 93.54%.
+Synchronization measures 95.50% statements / 91.80% branches and security measures
+98.95% / 98.15%, meeting the core targets. Whole-library branch coverage is 89.31%;
 live provider and production checks remain unverified.
 
 ## F. Database
 
 Inspected six baseline migrations, including all four named in the assignment plus
 privilege lockdown/indexing. Created eleven migrations `20261101000000`–`20261101000010`.
-All 17 apply to isolated local PGlite databases. None was applied to remote development,
+Added two customer migrations `20261103000000`–`20261103000001`. All 19 apply to
+isolated local PGlite databases. None was applied to remote development,
 staging or production. Target Supabase migration ledger remains unverified.
 New pair FKs preserve historical rows with `NOT VALID` while checking new writes.
 After reviewing original pair ownership, reconcile orphans and validate
@@ -90,7 +98,8 @@ No PR merge or production deployment was performed or authorized.
 | P1 | Real Wix/HubSpot development acceptance and callback/scope/subscription checks | Account owner + QA; mocks cannot prove live setup |
 | P1 | Apply staging migrations, reconcile historical pairs and verify RLS/PostgREST | Database owner; remote ledger unavailable locally |
 | P1 | Resolve/accept documented HubSpot edit-race semantics | Product + engineering; no verified atomic conditional PATCH |
-| P1 | Customer membership/resource authorization before self-service use | Engineering; console currently grants global operator access |
+| P1 | Real customer Auth/ownership/consent acceptance before feature activation | Account owner + QA; implemented with local SQL/API/browser tests, live behavior unverified |
+| P1 | Wix reinstall/site-transfer and delayed first uninstall acceptance | Engineering + account owner; instance IDs may survive reinstall, so replay dedup alone cannot establish lifecycle ordering |
 | P1 | Actual HTTPS deployment, secrets, scheduler execution and alerts | Hosting/account owner after staging approval |
 | P2 | Extend provider/queue boundary coverage and concurrent crash/load fault injection | Engineering + QA; core coverage targets met, live fault testing outstanding |
 | P2 | Retention, key rotation, restore exercise and ingress throttling | Security/operations before real personal data |
@@ -107,7 +116,10 @@ fully atomic cross-provider last-write-wins or an active production scheduler is
 1. **Supabase:** choose an isolated development project, inspect its migration ledger,
    apply pending migrations in order, configure reviewed pairs, reconcile history and
    validate the pair FKs. Verify RLS, grants and queue claims. Configure server-only
-   `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` on the host.
+   `SUPABASE_URL` and modern `SUPABASE_SECRET_KEY` (legacy service-role fallback supported)
+   on the host. For customer access follow `TENANCY-DESIGN.md`: confirmed email Auth,
+   public publishable key, separate customer callback, Wix external dashboard and
+   explicit staging-only feature activation.
 2. **Wix:** install the self-managed app on test sites; configure Read/Manage Contacts
    and lifecycle permissions, public RSA key and HTTPS `/api/webhooks/wix`. Subscribe
    to `AppInstalled`, `AppRemoved`, `wix.contacts.v4.contact_created` and

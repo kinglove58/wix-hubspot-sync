@@ -22,6 +22,7 @@ This table does not convert test coverage into production certification.
 | Wix uninstall | Durable tombstone, history retained, further writes blocked | Signed lifecycle delivery and reinstall |
 | HubSpot disconnect/reconnect | Local-first revoke and stable connection ID tests; browser flow | Live revocation and reconnect permissions |
 | Conflicts / delayed events | Current snapshots, deterministic ties, revision/preflight guards | HubSpot final-PATCH edit race remains a P1 limitation |
+| Customer organizations and access | SQL/route tests plus six mocked customer browser cases | Real Supabase Auth, verified Wix context and customer OAuth acceptance pending; feature off by default |
 | Echo prevention | Exact provider versions, precision/time-zone and newer-edit tests | Live timestamp precision and webhook ordering |
 | Worker crash / stale lease | SQL reclaim, independent completion fencing, owner/deadline checks | Multiple processes, forced termination and long suspension |
 | Retry limit / permanent errors | 100% retry-policy branches, exhausted lease and terminal workflow | Deployed scheduler sweeps and alerts |

@@ -14,6 +14,9 @@
 | Delayed Forms could replace newer contact edits or bypass disabled mappings | P1 | Immutable provider timestamps, fresh target preflight, shared mapping masks and SQL-backed regression workflow |
 | Secret/PII exposure | P1 | Server-only Supabase client, authenticated encryption, metadata-only logs, no provider bodies in safe HTTP errors |
 | Public administrative mutations | P1 | Signed HttpOnly sessions or server API credential, same-origin cookie mutations, durable login limit |
+| Customer access lacked ownership authorization | P1 | Separate verified Supabase Auth namespace, active membership/role checks, scoped resources and immutable connection ownership; SQL, route and browser regressions |
+| Customer OAuth identity or tenant substitution | P1 | Independent private browser nonce plus single-use state hashes, encrypted short-lived user token, fresh Auth and membership verification before exchange, atomic ownership save |
+| Customer Wix instance guessing | P1 | Owner-only signed context validated through official Wix Token Info; raw site IDs rejected before provider effects |
 
 Wix verifies RS256 before decoding nested data and requires numeric unexpired `exp`;
 `iat`, when supplied, is validated. The verifier does not invent a requirement for
@@ -28,8 +31,9 @@ was introduced. SQL claim/lease functions are restricted to trusted backend role
 
 ## Open release conditions
 
-* P1: Shared operator authorization is unsuitable for customer self-service. Add
-  user/tenant membership and explicit resource authorization before that product mode.
+* P1: Verify the new customer Auth, ownership proof and OAuth flows with real staging
+  accounts before enabling `CUSTOMER_ACCESS_ENABLED`. Mocked Auth/provider HTTP cannot
+  establish live consent, email delivery or Wix dashboard context behavior.
 * P1: HubSpot has no verified atomic conditional contact PATCH contract. A final-read
   preflight reduces stale writes but cannot eliminate edits racing the write.
 * P1: Apply and verify migrations, provider configuration and production scheduler in

@@ -5,8 +5,9 @@
 This checkout has local engineering fixes and automated coverage. It is **not a
 production sign-off**. No remote database, deployment, provider subscription or real
 contact has been changed. Use a dedicated Wix test site and HubSpot developer test
-portal for acceptance. The dashboard is a shared operator console; do not expose it
-as a customer self-service SaaS dashboard without user/tenant membership authorization.
+portal for acceptance. The root dashboard is a shared operator console. The optional
+customer workspace has separate Auth and tenant authorization; keep it disabled until
+the setup and acceptance in `TENANCY-DESIGN.md` pass against staging accounts.
 
 ## Reference hosting target: Vercel Node.js Functions
 
@@ -267,8 +268,9 @@ Release blockers still requiring acceptance/design work:
 - Control scheduler overlap and test sustained load; lock contention is rescheduled
   without consuming the retry budget, but high-volume throughput still needs measurement.
 - Contact deletion/merge, historic bulk import, automatic remapping of deleted linked
-  contacts, geographic code conversion, encryption-key rotation and customer membership
-  authorization are not implemented as completed features.
+  contacts, geographic code conversion and encryption-key rotation are not implemented
+  as completed features. Customer authorization is implemented with local verification;
+  live acceptance and membership invitation/administration UI remain outstanding.
 - Live Supabase migrations, provider permissions/payloads, deployed scheduler, secrets,
   alerts and production load remain unverified in this environment.
 

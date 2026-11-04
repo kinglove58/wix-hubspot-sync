@@ -42,9 +42,13 @@ allowed routes; shared endpoints are supported. Inbound events fan out over conf
 active pairs. Unpaired or ambiguous manual resolution fails safely. Historical links
 survive disconnects. Pair endpoints cannot be changed in place.
 
-This is an operator-managed integration. The shared administrator can manage all
-connections. There is no customer membership or per-user tenant authorization model;
-the console must not be offered as customer self-service until that exists.
+The root operator console retains privileged global access. The optional `/customer`
+workspace uses verified Supabase Auth users, active tenant membership and explicit
+resource checks in a separate `/api/customer` namespace. Owner/admin roles can mutate;
+viewers can read. Provider endpoints must share ownership; disabled tenants and
+partially adopted legacy pairs fail closed. Browser roles have no integration-table
+access. Customer access remains disabled by default pending staging acceptance.
+See `TENANCY-DESIGN.md` for onboarding proofs and atomic ownership adoption.
 
 ## Data integrity
 
