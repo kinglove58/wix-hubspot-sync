@@ -65,9 +65,11 @@ obscures operation feedback. Connected mappings display the correct account-pair
 
 ## Release status: NOT READY for production
 
-Continuous staging scheduling is approved and prepared in
-scripts/staging-scheduler.sql but not applied: the Obafemi browser connection must
-be restored to configure its Vault secret and verify consecutive actual HTTP runs.
+The approved one-minute Supabase staging schedule is active and live-tested.
+Its Vault credential is never queued: synchronous HTTP validates status200 and
+zero failed/deferred counts before a cron run succeeds. Two consecutive guarded
+runs and a real synthetic contact sync with zero manual dispatch calls passed.
+Vault browser-role denials and public net-schema isolation were verified.
 Production is excluded. Multi-account real acceptance, revocation/reinstall,
 site transfer, live fault/load tests, customer-mode Auth/ownership/consent acceptance,
 and alert delivery remain outstanding. Customer access stays disabled. HubSpot's

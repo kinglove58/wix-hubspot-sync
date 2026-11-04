@@ -50,3 +50,9 @@ including retrieval of the resulting Wix contact and asserted mapped field. A fi
 Wix echo was ignored and the retryable queue was empty. Continuous scheduling remains
 approved but unapplied; see VALIDATION.md. Real multi-account and lifecycle cases
 in the original table are still pending.
+
+Automatic one-pair staging acceptance now passes: a new real HubSpot synthetic
+contact reached Wix through actual signed ingress and the one-minute scheduled
+worker, with zero manual dispatch calls. Both guarded automatic runs and Vault
+browser-role denials were verified. Real no-email contact acceptance also passed.
+Production alerting and the remaining multi-account/lifecycle cases stay pending.

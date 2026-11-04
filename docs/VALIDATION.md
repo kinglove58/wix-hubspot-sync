@@ -242,3 +242,50 @@ The local Node22 browser regression rerun completed: **12 passed, zero skipped,
 QA API/webhook checks. Continuous staging scheduling is approved but still not
 applied because Obafemi is unavailable. Its native fallback also returned the wrong
 window screenshot, so no coordinate input was attempted. No production changes.
+
+## Automatic staging worker — 2026-11-04
+
+After the user approved Supabase Vault and scheduling, Obafemi reconnected and the
+existing GitHub-backed Supabase session was restored. Cron was enabled only in the
+isolated staging project. The existing worker secret was saved through the Vault
+UI under `wix_hubspot_staging_cron`; no secret appeared in SQL history or Git.
+
+The initial pg_net experiment successfully processed a synthetic contact, but live
+privilege checks found that the platform grants browser DB roles access to its
+transient request queue. Broad revocations did not remove those platform grants.
+A separate public Data API probe returned HTTP406/PGRST106 for net, so it was not an
+exposed API schema. The final job uses the supported synchronous `http` extension,
+which does not put the Authorization header into that queue. The exploratory
+pg_net extension was left installed, unused by the final job; no destructive drop.
+The first setup transaction also exposed a forbidden revoke on Supabase-owned
+internal Vault crypto helpers. That failed transaction was corrected; the final
+script leaves those helpers untouched and asserts Vault schema/table browser denial.
+
+`scripts/staging-scheduler.sql` was applied successfully to staging. Job ID1,
+`wix-hubspot-staging-dispatch`, is active on `* * * * *`. Its command validates actual
+HTTP200 and zero failed/deferred worker counts, otherwise raising a sanitized error.
+The Vault value is looked up at runtime. Connect timeout10s, total timeout280s.
+Certificate validation was not weakened. `scripts/staging-scheduler-verify.sql`
+confirmed both browser roles lack Vault usage and decrypted-secret SELECT privileges.
+
+Two consecutive **final synchronous** automatic runs succeeded:
+
+| Run | UTC start | UTC finish | Result |
+|---|---|---|---|
+| 5 | 2026-11-04 18:58:00 | 18:58:16 | succeeded / DO |
+| 6 | 2026-11-04 18:59:00 | 18:59:02 | succeeded / DO |
+
+Their guarded DO command requires the actual HTTP response checks to pass; this is
+stronger than the earlier pg_net runs that proved only request enqueueing.
+A fresh real HubSpot synthetic contact then traversed the vendor-signed webhook,
+durable queue, automatic worker and linked Wix contact. A real Wix GET asserted
+its expected name. **Manual dispatch calls: zero.** This acceptance was repeated
+successfully after the synchronous transport replacement. Some sibling property
+notifications were still pending while the assertion ran; eventual drain is checked
+separately rather than falsely marking every sibling completed immediately.
+
+The earlier no-email real contact acceptance also passed: first sync succeeded,
+second skipped, one persistent link. Existing application migrations remain20;
+Cron/http/Vault settings are version-controlled staging operational setup. No
+production database/deployment, main push, merge, customer access activation or
+external alert delivery was performed.

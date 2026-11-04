@@ -186,3 +186,12 @@ pass; source commit 2b1656b passes hosted CI and Vercel deployment. Thus HubSpot
 delivery is resolved; continuous scheduling/alerts and the remaining real lifecycle,
 multi-account and conflict-race acceptance are still production gates. Scheduling
 approval is recorded; setup is blocked on Obafemi browser reconnection.
+
+Automatic staging processing is now configured and live-tested. Supabase Cron
+runs the protected Vercel worker every minute, with the existing secret encrypted
+in Vault and synchronous HTTP to avoid a readable pg_net request queue. Two
+consecutive response-guarded runs succeeded, and a new synthetic HubSpot contact
+synchronized into Wix without any manual dispatch. No-email acceptance passed too.
+The prior browser/scheduler blocker is resolved. Production remains NOT READY:
+alert delivery, broader live multi-account/lifecycle acceptance and the documented
+HubSpot conflict race still need resolution. See VALIDATION.md and DEPLOYMENT.md.

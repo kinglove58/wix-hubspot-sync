@@ -301,27 +301,47 @@ Release blockers still requiring acceptance/design work:
   contacts, geographic code conversion and encryption-key rotation are not implemented
   as completed features. Customer authorization is implemented with local verification;
   live acceptance and membership invitation/administration UI remain outstanding.
-- Live Supabase migrations, provider permissions/payloads, deployed scheduler, secrets,
-  alerts and production load remain unverified in this environment.
+- See VALIDATION.md for completed isolated staging migrations, providers and scheduler checks. Production alerting and sustained load remain unverified.
 
-Keep the queue paused and customer traffic disabled until the relevant gates pass.
+Keep customer traffic disabled until its acceptance gates pass. The isolated QA queue uses the approved scheduler below.
 
-### Optional isolated staging scheduler (not yet applied)
+### Isolated staging scheduler
 
-`scripts/staging-scheduler.sql` prepares a named one-minute Supabase Cron job for
-this staging project only. It sends an authenticated POST to the deployed worker,
-using the existing `CRON_SECRET` stored under a named Supabase Vault entry rather
-than putting the value into cron SQL. Enabling the extensions and storing this
-secret require approval for that destination. No production job is configured.
+The approved `wix-hubspot-staging-dispatch` job runs every minute in Supabase staging
+project `xrdmxvkcewlqmufrwtfm`, independently of the developer computer. Its existing
+`CRON_SECRET` is encrypted in Vault as `wix_hubspot_staging_cron`. Only the dedicated
+staging Vercel worker receives the credential. No production scheduler was changed.
 
-The script denies browser roles access to Vault and pg_net because outgoing
-requests temporarily contain decrypted authorization headers. Database owners
-remain trusted. Verify multiple actual HTTP responses and worker result counts;
-pg_cron success alone proves only enqueueing. A 207 response requires investigation.
-The job can overlap a long dispatch; atomic event claims still fence processing.
-Inspect workload/hosting limits before increasing cadence or batch size.
+Apply `scripts/staging-scheduler.sql` only to this authorized staging project after
+enabling Supabase Cron and saving the credential through the Vault UI. The script
+checks the expected QA connections and Vault entry, enables the supported `http`
+extension, denies browser-role Vault access, and creates/updates the single named job.
+It deliberately leaves Supabase-owned internal Vault crypto function grants intact.
+No contact rows are changed by setup. These are optional operational settings;
+the application's twenty migration ledger entries remain unchanged.
 
-Official reference: [Supabase scheduling and Vault](https://supabase.com/docs/guides/functions/schedule-functions).
-This operational script has not been applied or live-tested. Keep the existing
-GitHub scheduler disabled while another dispatcher is active. Alert delivery still
-needs an explicitly selected operator destination and must be tested separately.
+The job uses synchronous `extensions.http`, not `pg_net`: live checks found the
+platform grants browser database roles access to pg_net's transient request queue.
+A queued authorization header would therefore be readable to roles with SQL access.
+The public Data API independently rejects the net schema (live HTTP406/PGRST106).
+The final transport keeps the credential in memory and Vault, never in that queue,
+cron text or response logs. The exploratory pg_net extension remains installed but
+is unused by this job; no destructive extension removal was performed.
+
+Connection timeout is 10 seconds and total HTTP timeout is 280 seconds. Certificate
+verification remains enabled. A run succeeds only after actual HTTP200 and zero
+failed/deferred worker counts; HTTP207 and other errors raise a sanitized failure.
+Safe count-only messages are sent to database logs. A single job occupies one cron
+connection while working; measure sustained throughput and hosting quotas before
+increasing cadence or batch size. Atomic worker claims still fence processing.
+
+Run `scripts/staging-scheduler-verify.sql` to inspect active configuration, Vault
+role denials and consecutive guarded automatic runs. Also test a new synthetic
+contact without any manual dispatch. Stop only this job with
+`SELECT cron.unschedule('wix-hubspot-staging-dispatch');`; do not disable/drop Cron,
+as that can remove unrelated jobs. Keep the alternative GitHub scheduler disabled.
+
+References: [Supabase HTTP extension](https://supabase.com/docs/guides/database/extensions/http),
+[HTTP options](https://github.com/pramsey/pgsql-http#curl-options),
+[Supabase Cron](https://supabase.com/docs/guides/cron).
+Alert delivery still needs an operator destination and an actual alert test.

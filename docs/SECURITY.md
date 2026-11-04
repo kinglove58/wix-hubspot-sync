@@ -46,12 +46,22 @@ was introduced. SQL claim/lease functions are restricted to trusted backend role
   boundary coverage still has room to improve.
 
 Do not accept real customer data until release owners resolve the applicable P1 gates.
-No production penetration test, external security certification or successful real
-provider contact workflow is claimed. Wix's signed sample delivery and deployed
-security checks are recorded in `VALIDATION.md`; they do not replace contact acceptance.
+No production penetration test or external security certification is claimed. Real isolated QA contact/webhook and automatic-processing evidence is recorded in VALIDATION.md; it does not certify production or the broader multi-account/lifecycle matrix.
 Dependency audit results belong in the dated validation record.
 
 Report vulnerabilities privately to the repository owner. Do not put tokens, contact
 payloads, OAuth codes or database credentials in issues or logs. Rotation of the
 encryption key requires a deliberate re-encryption migration; changing it in place
 will make existing encrypted records unreadable.
+
+### Staging scheduler security
+
+The final staging Cron job reads its credential from protected Vault and uses
+synchronous `extensions.http`. It never queues that credential in pg_net. Live
+inspection found pg_net queue/function grants to browser DB roles that broad
+revocations did not remove; public Data API access to net independently returns
+406/PGRST106. The exploratory extension remains unused by the final job. Vault
+schema usage and decrypted-secret reads are denied to anon/authenticated and were
+verified after setup. Internal Supabase-owned crypto helper grants are untouched.
+The job validates HTTP200 and zero failed/deferred counts and emits count-only logs.
+This is staging verification, not a production security certification.
