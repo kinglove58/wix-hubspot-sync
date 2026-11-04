@@ -19,7 +19,7 @@ Forms conflict/mapping and audit follow-up: `ec91f93`.
 | Production build | PASS | `npm.cmd run build`: Next.js 15.5.28, operator and customer routes generated |
 | Production HTTP smoke | PASS | `npm.cmd run test:smoke`: 9 checks including customer access and framing protection; temporary localhost server stopped |
 | Production dependencies | PASS | `npm.cmd audit --omit=dev --audit-level=high`: 0 vulnerabilities |
-| Migration execution | PASS locally | All 20 migrations applied to isolated PGlite databases; no remote database changes |
+| Migration execution | PASS locally and staging | All 20 migrations applied to PGlite and the newly authorized isolated Supabase staging project; live ledger ends at `20261104000000` |
 | History pattern scan | PASS within scope | 245 reachable revisions, common private-key/GitHub/AWS/live payment key patterns, zero matches; values never printed |
 
 The history scan is limited evidence, not proof that no possible secret exists.
@@ -48,8 +48,8 @@ Verification levels:
 1. Unit-tested: mapping, timestamps, signatures, retry, idempotency, encryption and authentication.
 2. Integration-tested with synthetic provider HTTP: actual SQL migrations/functions,
    signed routes, encrypted storage, real processing services, token lifecycle and pair isolation.
-3. Real development provider accounts: **not verified**; no live credentials used.
-4. Production: **not deployed or verified**; no remote migrations or customer data changes.
+3. Real development infrastructure: Supabase staging migration/security/queue smoke checks passed (see below). Wix/HubSpot OAuth and contact writes remain **not verified**.
+4. Production: **not deployed or verified**; no production database or customer data changes.
 
 PGlite does not prove deployed Supabase/PostgREST or multi-process behavior. Browser
 mocks do not prove provider consent or writes. The deployment and security documents
@@ -64,3 +64,30 @@ Customer-access hosted CI also passed for `58a5de7`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41773192540
 The pending-removal follow-up adds five tests and the twentieth migration; its latest
 hosted checks must pass independently before merge.
+
+## Isolated Supabase staging verification — 2026-11-04
+
+The user created a new dedicated staging project. A read-only query first confirmed
+zero public tables and no migration ledger. All 20 exact repository migrations were
+then executed in order within one transaction. The bootstrap used the official CLI
+ledger shape (`version`, `name`, `statements`); each ledger record was inserted after
+its DDL. The ledger additionally has RLS and no browser-role grants. The generated
+bundle and exact source roundtrip were tested in PGlite before remote execution.
+
+Live SQL returned **20 migrations, 13 public tables, 13 RLS-enabled tables, zero
+tables readable by anon/authenticated**. The last migration is `20261104000000`.
+`scripts/staging-database-smoke.sql` also passed against real Supabase PostgreSQL:
+privileged RPC isolation, cross-tenant pair rejection, first queue claim, duplicate
+claim rejection, stale lease recovery and exhausted-retry terminal state. Synthetic
+rows were rolled back. This does not test PostgREST, multi-session contention, OAuth,
+provider writes or scheduled workers. Existing unrelated Supabase projects were untouched.
+
+HubSpot CLI 8.16.0 successfully scaffolded a local private OAuth project for platform
+2026.09 using the user-approved scoped development key. The key is stored outside
+the repository with Windows DPAPI encryption and owner-only ACLs. No project upload,
+app installation, live webhook registration or HTTPS deployment has been verified.
+The user selected Vercel staging; account access/setup is still pending.
+
+Hosted CI passed for `515693a`:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118
+Later documentation/check-script changes require their own hosted result.

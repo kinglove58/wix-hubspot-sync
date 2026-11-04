@@ -77,8 +77,10 @@ Inspected six baseline migrations, including all four named in the assignment pl
 privilege lockdown/indexing. Created eleven migrations `20261101000000`–`20261101000010`.
 Added two customer migrations `20261103000000`–`20261103000001` and
 `20261104000000` for the pending-removal barrier. All 20 apply to isolated local
-PGlite databases. None was applied to remote development,
-staging or production. Target Supabase migration ledger remains unverified.
+PGlite databases and the user-created isolated Supabase staging project. The live
+ledger contains 20 records through `20261104000000`; all 13 application tables have
+RLS and zero browser read grants. Queue/tenant/RPC smoke checks passed with synthetic
+rows rolled back. No production database was changed. See `VALIDATION.md`.
 New pair FKs preserve historical rows with `NOT VALID` while checking new writes.
 After reviewing original pair ownership, reconcile orphans and validate
 `contact_links_pair_fk` and `field_mappings_pair_fk` in staging. Never delete history
@@ -97,7 +99,9 @@ https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41692202068
 Customer implementation `cc1c643` and tests `cb4972b` also passed hosted Node 22 CI
 on documentation commit `58a5de7`:
 https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41773192540
-The pending-removal follow-up requires its own hosted checks before merge.
+Hosted CI passed for the pending-removal follow-up at `515693a`:
+https://github.com/kinglove58/wix-hubspot-sync/actions/runs/41774803118
+Subsequent documentation/check-script changes require a new hosted result.
 No PR merge or production deployment was performed or authorized.
 
 ## H. Outstanding work
@@ -105,7 +109,7 @@ No PR merge or production deployment was performed or authorized.
 | Priority | Action | Owner / reason |
 |---|---|---|
 | P1 | Real Wix/HubSpot development acceptance and callback/scope/subscription checks | Account owner + QA; mocks cannot prove live setup |
-| P1 | Apply staging migrations, reconcile historical pairs and verify RLS/PostgREST | Database owner; remote ledger unavailable locally |
+| P1 | Verify staging backend/PostgREST connectivity, multi-session contention and reviewed pairs | Engineering; migration/RLS/queue SQL checks passed, HTTP/provider acceptance pending |
 | P1 | Resolve/accept documented HubSpot edit-race semantics | Product + engineering; no verified atomic conditional PATCH |
 | P1 | Real customer Auth/ownership/consent acceptance before feature activation | Account owner + QA; implemented with local SQL/API/browser tests, live behavior unverified |
 | P1 | Wix reinstall/site-transfer and delayed first uninstall acceptance | Engineering + account owner; instance IDs may survive reinstall, so replay dedup alone cannot establish lifecycle ordering |
@@ -122,9 +126,10 @@ fully atomic cross-provider last-write-wins or an active production scheduler is
 
 ## J. Exact next actions
 
-1. **Supabase:** choose an isolated development project, inspect its migration ledger,
-   apply pending migrations in order, configure reviewed pairs, reconcile history and
-   validate the pair FKs. Verify RLS, grants and queue claims. Configure server-only
+1. **Supabase:** the new isolated staging project now has all 20 migrations applied,
+   and live RLS/grant, tenant-pair and queue smoke checks passed (`VALIDATION.md`).
+   Next configure reviewed pairs, test PostgREST/backend connectivity and verify
+   multi-session contention. Configure server-only
    `SUPABASE_URL` and modern `SUPABASE_SECRET_KEY` (legacy service-role fallback supported)
    on the host. For customer access follow `TENANCY-DESIGN.md`: confirmed email Auth,
    public publishable key, separate customer callback, Wix external dashboard and

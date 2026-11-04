@@ -3,8 +3,10 @@
 ## Release decision
 
 This checkout has local engineering fixes and automated coverage. It is **not a
-production sign-off**. No remote database, deployment, provider subscription or real
-contact has been changed. Use a dedicated Wix test site and HubSpot developer test
+production sign-off**. The user-authorized isolated Supabase staging database now
+has all 20 migrations and passed the SQL smoke checks in `VALIDATION.md`. No production
+database, deployment, provider subscription or real contact has been changed.
+Use a dedicated Wix test site and HubSpot developer test
 portal for acceptance. The root dashboard is a shared operator console. The optional
 customer workspace has separate Auth and tenant authorization; keep it disabled until
 the setup and acceptance in `TENANCY-DESIGN.md` pass against staging accounts.
@@ -26,6 +28,12 @@ protection; retain the application's own admin and worker authentication. After 
 reviewed staging migrations, invoke the protected dispatcher manually, verify the
 actual logs/queue, then configure the gated GitHub scheduler described below.
 No Vercel project, paid plan, deployment or production setting was changed here.
+
+The user has selected Vercel staging. The live staging SQL verification is repeatable
+with `scripts/staging-database-smoke.sql` in the dedicated staging SQL editor. It uses
+synthetic records and rolls back its transaction; never use production for acceptance
+tests. Inspect the final PASS result, not merely a successful submission. SQL checks
+do not replace testing service-key/PostgREST access from the deployed application.
 
 Official deployment references:
 
